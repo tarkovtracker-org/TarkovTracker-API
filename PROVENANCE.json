@@ -1,0 +1,370 @@
+{
+  "originalRepository": "https://github.com/tarkovtracker-org/TarkovTracker",
+  "originalCommit": "99b19499b48998eb177e4c8e7cbd6e31469baaff",
+  "sourcePath": "workers/api-gateway",
+  "foundationPullRequest": "https://github.com/tarkovtracker-org/TarkovTracker/pull/1145",
+  "unchangedFiles": [
+    {
+      "path": ".env.example",
+      "originalSha256": "539046c9cec24a115c4285e579f71a6c03ed7c6108e1038c7a1051768652d2fb",
+      "sha256": "539046c9cec24a115c4285e579f71a6c03ed7c6108e1038c7a1051768652d2fb"
+    },
+    {
+      "path": "CLAUDE.md",
+      "originalSha256": "c563b1a3f057470c3ef80f81c4fda22adba2c8b577d1b89a603820dac624e02c",
+      "sha256": "c563b1a3f057470c3ef80f81c4fda22adba2c8b577d1b89a603820dac624e02c"
+    },
+    {
+      "path": "package.json",
+      "originalSha256": "cce76e23c0edfd34f8f7fcc09a3cf79f2f5940eeabdf85d4433401f5a97a8b0d",
+      "sha256": "cce76e23c0edfd34f8f7fcc09a3cf79f2f5940eeabdf85d4433401f5a97a8b0d"
+    },
+    {
+      "path": "progress-contracts/fixtures/task-failure-branches.json",
+      "originalSha256": "6e468a5e04a1966473290a6f614849644541f87b744614fdebb6fa03b723c15b",
+      "sha256": "6e468a5e04a1966473290a6f614849644541f87b744614fdebb6fa03b723c15b"
+    },
+    {
+      "path": "progress-contracts/LICENSE.md",
+      "originalSha256": "0a00b839666fa33ec6a6b72479a077a1cbfcdb6b9f0365690720219fa0baf11f",
+      "sha256": "0a00b839666fa33ec6a6b72479a077a1cbfcdb6b9f0365690720219fa0baf11f"
+    },
+    {
+      "path": "progress-contracts/scripts/watch.mjs",
+      "originalSha256": "7b892173b7315434078c4eb959920f4b7b815347991a9eb1c45f317f35516b82",
+      "sha256": "7b892173b7315434078c4eb959920f4b7b815347991a9eb1c45f317f35516b82"
+    },
+    {
+      "path": "progress-contracts/src/apiTaskUpdates.test.ts",
+      "originalSha256": "5a47ba16d90d19ac68d26193962dec12a699d36d453d271d9f447f4ef9804f91",
+      "sha256": "5a47ba16d90d19ac68d26193962dec12a699d36d453d271d9f447f4ef9804f91"
+    },
+    {
+      "path": "progress-contracts/src/apiTaskUpdates.ts",
+      "originalSha256": "8791ec23390fbaf143d43215b39bbf46a214e1a3e108936fd2c9a0eea78671b4",
+      "sha256": "8791ec23390fbaf143d43215b39bbf46a214e1a3e108936fd2c9a0eea78671b4"
+    },
+    {
+      "path": "progress-contracts/src/modeProgress.test.ts",
+      "originalSha256": "389ca2ac2a67159fd1fcafadde207e0f2ef9bcaa518444e70bf763c4e9969037",
+      "sha256": "389ca2ac2a67159fd1fcafadde207e0f2ef9bcaa518444e70bf763c4e9969037"
+    },
+    {
+      "path": "progress-contracts/src/modeProgress.ts",
+      "originalSha256": "cada09be499015c77e32d75ec4367f8460f773c8a9bd943932edc1d0e0e3cbfe",
+      "sha256": "cada09be499015c77e32d75ec4367f8460f773c8a9bd943932edc1d0e0e3cbfe"
+    },
+    {
+      "path": "progress-contracts/src/progressInvalidation.test.ts",
+      "originalSha256": "8048b79e55da5297037263d22ad3f0c90f73275d7336ee3a9a8662498b09e8ca",
+      "sha256": "8048b79e55da5297037263d22ad3f0c90f73275d7336ee3a9a8662498b09e8ca"
+    },
+    {
+      "path": "progress-contracts/src/progressInvalidation.ts",
+      "originalSha256": "792081938864faa726b9cb53a7027c8a940b1dad020c867bb117e53f1cc07de6",
+      "sha256": "792081938864faa726b9cb53a7027c8a940b1dad020c867bb117e53f1cc07de6"
+    },
+    {
+      "path": "progress-contracts/src/requirementStatus.ts",
+      "originalSha256": "e3ab520c04cd8abbfa1538ef33442a7830e6dbaa087ce5ecf95ce77e75aa6930",
+      "sha256": "e3ab520c04cd8abbfa1538ef33442a7830e6dbaa087ce5ecf95ce77e75aa6930"
+    },
+    {
+      "path": "progress-contracts/src/seasonNumber.test.ts",
+      "originalSha256": "e4b5ebd7947a575bdd5180084f0c53beb544cb8acf697177bb91e83d245eaef0",
+      "sha256": "e4b5ebd7947a575bdd5180084f0c53beb544cb8acf697177bb91e83d245eaef0"
+    },
+    {
+      "path": "progress-contracts/src/seasonNumber.ts",
+      "originalSha256": "4b9b2b56b2ef971ed8ce32342e773e6ead7f21287a5026b94df7caa65a9085d5",
+      "sha256": "4b9b2b56b2ef971ed8ce32342e773e6ead7f21287a5026b94df7caa65a9085d5"
+    },
+    {
+      "path": "progress-contracts/src/taskFailureEdges.test.ts",
+      "originalSha256": "39c9021349ea9eba9f7086d7e619ef8929457873df4dcbb26de325f0518cfcb9",
+      "sha256": "39c9021349ea9eba9f7086d7e619ef8929457873df4dcbb26de325f0518cfcb9"
+    },
+    {
+      "path": "progress-contracts/src/taskFailureEdges.ts",
+      "originalSha256": "caa95b723899299cf5f686b443566325aefeefb00e2e268876f84852a17c6835",
+      "sha256": "caa95b723899299cf5f686b443566325aefeefb00e2e268876f84852a17c6835"
+    },
+    {
+      "path": "progress-contracts/src/taskTransitions.test.ts",
+      "originalSha256": "04eb0580bab75df230b1577c1525d87d3001e8dbebb2d8eeeee2e1f7952521de",
+      "sha256": "04eb0580bab75df230b1577c1525d87d3001e8dbebb2d8eeeee2e1f7952521de"
+    },
+    {
+      "path": "progress-contracts/src/taskTransitions.ts",
+      "originalSha256": "1ba97ebb2fd7ebfab926749d7ecd0ab8ed14718bc83c786e4c4dc2c9868f3dbd",
+      "sha256": "1ba97ebb2fd7ebfab926749d7ecd0ab8ed14718bc83c786e4c4dc2c9868f3dbd"
+    },
+    {
+      "path": "progress-contracts/src/userMetadata.test.ts",
+      "originalSha256": "21c4ef710f4e4069f79a9e90335cab0d909cf20564e5a96cfbd84e5213af20df",
+      "sha256": "21c4ef710f4e4069f79a9e90335cab0d909cf20564e5a96cfbd84e5213af20df"
+    },
+    {
+      "path": "progress-contracts/src/userMetadata.ts",
+      "originalSha256": "77d691cf3cf1115f23806d52a01e5baa26e348ec6f62b5e5c0a0a8bb652d56b2",
+      "sha256": "77d691cf3cf1115f23806d52a01e5baa26e348ec6f62b5e5c0a0a8bb652d56b2"
+    },
+    {
+      "path": "progress-contracts/tsconfig.json",
+      "originalSha256": "8ad24092f2e99dd96d45effe90a5feca646877c318526b99c9a3afd3db7523c2",
+      "sha256": "8ad24092f2e99dd96d45effe90a5feca646877c318526b99c9a3afd3db7523c2"
+    },
+    {
+      "path": "progress-contracts/vitest.config.ts",
+      "originalSha256": "121145d1bddaf74c537c8f0a860250ee75d63c6f3c5f8862b713361014f248b4",
+      "sha256": "121145d1bddaf74c537c8f0a860250ee75d63c6f3c5f8862b713361014f248b4"
+    },
+    {
+      "path": "scripts/check-boundaries.d.mts",
+      "originalSha256": "11199edf5d03b493f7594916330a476cf50f55a1b5031c61f45472ead768b4ce",
+      "sha256": "11199edf5d03b493f7594916330a476cf50f55a1b5031c61f45472ead768b4ce"
+    },
+    {
+      "path": "scripts/check-boundaries.mjs",
+      "originalSha256": "bbcceeef6970fc3e9fbe77e2d1a9d62299e84f0cde800228bef03f8355789b16",
+      "sha256": "bbcceeef6970fc3e9fbe77e2d1a9d62299e84f0cde800228bef03f8355789b16"
+    },
+    {
+      "path": "scripts/check-boundaries.test.ts",
+      "originalSha256": "be6553ef718a4e3b8e33522aaedeb995ee422dbf90cb55c689a79a8bc670a37d",
+      "sha256": "be6553ef718a4e3b8e33522aaedeb995ee422dbf90cb55c689a79a8bc670a37d"
+    },
+    {
+      "path": "scripts/prepare-contracts.d.mts",
+      "originalSha256": "06e8aa74b2800645f47209dbfbee051cbce478ce8a062fd8947f126eb0104576",
+      "sha256": "06e8aa74b2800645f47209dbfbee051cbce478ce8a062fd8947f126eb0104576"
+    },
+    {
+      "path": "scripts/prepare-contracts.mjs",
+      "originalSha256": "efdf0c8cd4c43c7df6986a15402879f16bf7d2d536666f2fc51c1a17e051dbc4",
+      "sha256": "efdf0c8cd4c43c7df6986a15402879f16bf7d2d536666f2fc51c1a17e051dbc4"
+    },
+    {
+      "path": "scripts/prepare-contracts.test.ts",
+      "originalSha256": "b8d54c9dfeb48698f3b5bd13a0e1baca6d85cc6f15cce168670d89705deea021",
+      "sha256": "b8d54c9dfeb48698f3b5bd13a0e1baca6d85cc6f15cce168670d89705deea021"
+    },
+    {
+      "path": "scripts/validate-openapi.ts",
+      "originalSha256": "3775e8cc2f02c86c568843a75cd82a3791e713559c1548c3e4e48ab4128842f9",
+      "sha256": "3775e8cc2f02c86c568843a75cd82a3791e713559c1548c3e4e48ab4128842f9"
+    },
+    {
+      "path": "src/auth.ts",
+      "originalSha256": "d5a221a41ad4f2964afd9fcd3825960826323c15aef9cd62284d00df31e0aec5",
+      "sha256": "d5a221a41ad4f2964afd9fcd3825960826323c15aef9cd62284d00df31e0aec5"
+    },
+    {
+      "path": "src/authentication.ts",
+      "originalSha256": "dd1f55060a58e791086bb9880eacc4a1f04f1a9941502a073c70cc298c54c809",
+      "sha256": "dd1f55060a58e791086bb9880eacc4a1f04f1a9941502a073c70cc298c54c809"
+    },
+    {
+      "path": "src/handlers/progress.ts",
+      "originalSha256": "65ade4e9655819c97ad68b0f4d933b24045508ed9e37ddd35e6b4dd6d903d0c6",
+      "sha256": "65ade4e9655819c97ad68b0f4d933b24045508ed9e37ddd35e6b4dd6d903d0c6"
+    },
+    {
+      "path": "src/handlers/team.ts",
+      "originalSha256": "df21957cf112ddf5e982595a23c8b0d2a40b8fb0c7bac5f9bcb3719b01403f2c",
+      "sha256": "df21957cf112ddf5e982595a23c8b0d2a40b8fb0c7bac5f9bcb3719b01403f2c"
+    },
+    {
+      "path": "src/handlers/token.ts",
+      "originalSha256": "cfcc4360f605c9d3ebfc655c0867b0350587ee9c0180cb83458039a40d106f03",
+      "sha256": "cfcc4360f605c9d3ebfc655c0867b0350587ee9c0180cb83458039a40d106f03"
+    },
+    {
+      "path": "src/index.ts",
+      "originalSha256": "ba20b706fff40dd736e1b15a8647712e8931b03b64e18415b2645405ff00dbcc",
+      "sha256": "ba20b706fff40dd736e1b15a8647712e8931b03b64e18415b2645405ff00dbcc"
+    },
+    {
+      "path": "src/limits.ts",
+      "originalSha256": "935a78dae42802005e4c9b96ca32617149763a077fc9165e84ef18049022434b",
+      "sha256": "935a78dae42802005e4c9b96ca32617149763a077fc9165e84ef18049022434b"
+    },
+    {
+      "path": "src/openapi.ts",
+      "originalSha256": "8c8bfd7f08c783d42b35cfdde80d092ded17657bb5ba48f6e1d38f7f4b76ed8e",
+      "sha256": "8c8bfd7f08c783d42b35cfdde80d092ded17657bb5ba48f6e1d38f7f4b76ed8e"
+    },
+    {
+      "path": "src/rateLimiter.ts",
+      "originalSha256": "dc8701db4ebbcfcccb2fdf1d2fc3137e9ad19e5d92b0b72a4a7a41504c8e2813",
+      "sha256": "dc8701db4ebbcfcccb2fdf1d2fc3137e9ad19e5d92b0b72a4a7a41504c8e2813"
+    },
+    {
+      "path": "src/responses.ts",
+      "originalSha256": "2a5dc7290fd6efa875d9a29e27cdb59f3505c5989a988b6273e92cfa315ddd41",
+      "sha256": "2a5dc7290fd6efa875d9a29e27cdb59f3505c5989a988b6273e92cfa315ddd41"
+    },
+    {
+      "path": "src/router.ts",
+      "originalSha256": "5a31adea2d79f75cfa8391d1077b5f8f8ec7e6fa9b50daaa3cd0c05c4199c286",
+      "sha256": "5a31adea2d79f75cfa8391d1077b5f8f8ec7e6fa9b50daaa3cd0c05c4199c286"
+    },
+    {
+      "path": "src/services/catalog-error.ts",
+      "originalSha256": "945be0cfb99d319b56194fe47e240de26920a21453bab21074e31b25d2dbb716",
+      "sha256": "945be0cfb99d319b56194fe47e240de26920a21453bab21074e31b25d2dbb716"
+    },
+    {
+      "path": "src/services/supporter.ts",
+      "originalSha256": "20b010f60d646b296b0c7e4fd610eed63e94ff9a1a79b434bdc93f8aa91b246f",
+      "sha256": "20b010f60d646b296b0c7e4fd610eed63e94ff9a1a79b434bdc93f8aa91b246f"
+    },
+    {
+      "path": "src/services/tarkov.ts",
+      "originalSha256": "37bd1b1bc1edd17c5a1095e40cd9f54cfe57931342fe5dc42e04751caf482ed8",
+      "sha256": "37bd1b1bc1edd17c5a1095e40cd9f54cfe57931342fe5dc42e04751caf482ed8"
+    },
+    {
+      "path": "src/services/token-usage.ts",
+      "originalSha256": "c883e6dd747214e7477fb1c27eac2dbb42a87e750c59ad9a69dcc9f03528722e",
+      "sha256": "c883e6dd747214e7477fb1c27eac2dbb42a87e750c59ad9a69dcc9f03528722e"
+    },
+    {
+      "path": "src/services/usage.ts",
+      "originalSha256": "60de7cc30d30d9cf58ed49e838b1948b08e38b5c0833f64a4792bd8c513c23d0",
+      "sha256": "60de7cc30d30d9cf58ed49e838b1948b08e38b5c0833f64a4792bd8c513c23d0"
+    },
+    {
+      "path": "src/types.ts",
+      "originalSha256": "4e038830090b8c4858509eb13e226c3c2ae1c59677ae34bf038cd95560ca9667",
+      "sha256": "4e038830090b8c4858509eb13e226c3c2ae1c59677ae34bf038cd95560ca9667"
+    },
+    {
+      "path": "src/utils/gameMode.ts",
+      "originalSha256": "9d30e8d3cd14986656379ff612594fb9cb1260f5694436431960cc8a3f54095a",
+      "sha256": "9d30e8d3cd14986656379ff612594fb9cb1260f5694436431960cc8a3f54095a"
+    },
+    {
+      "path": "src/utils/logger.ts",
+      "originalSha256": "3263760b66baedf206e0f487e2c010df8fb008f5302020f407359da1e28ab0cd",
+      "sha256": "3263760b66baedf206e0f487e2c010df8fb008f5302020f407359da1e28ab0cd"
+    },
+    {
+      "path": "src/utils/memory-cache.ts",
+      "originalSha256": "0958470cc603df23f8e7c2e8e2776bc844f12e254e5e6805bb0d9131d651f27f",
+      "sha256": "0958470cc603df23f8e7c2e8e2776bc844f12e254e5e6805bb0d9131d651f27f"
+    },
+    {
+      "path": "src/utils/task-catalog.ts",
+      "originalSha256": "47a5ebf0d9bd791234e9e7c9c5793f626236fd540c1a203a52c4f53566b31f2d",
+      "sha256": "47a5ebf0d9bd791234e9e7c9c5793f626236fd540c1a203a52c4f53566b31f2d"
+    },
+    {
+      "path": "src/utils/transform.ts",
+      "originalSha256": "e95226fb9fd7934992d77c37d35e754d82d9482a17c97aed54dd7966354ee4a1",
+      "sha256": "e95226fb9fd7934992d77c37d35e754d82d9482a17c97aed54dd7966354ee4a1"
+    },
+    {
+      "path": "src/utils/user-display-name.ts",
+      "originalSha256": "579261313737fa8df305cf770d18f418491b916e892882eb213200cdb28117ae",
+      "sha256": "579261313737fa8df305cf770d18f418491b916e892882eb213200cdb28117ae"
+    },
+    {
+      "path": "src/utils/userAgent.ts",
+      "originalSha256": "c45bf09c23282b41daa9ae5ddc755f4b1e89effe07a999c049cba21a2b625d1f",
+      "sha256": "c45bf09c23282b41daa9ae5ddc755f4b1e89effe07a999c049cba21a2b625d1f"
+    },
+    {
+      "path": "src/__tests__/cloudflare-workers.ts",
+      "originalSha256": "69f7d3c104ccc8324499ee89078d9d08027019403d5d874d25a522d37e1fb240",
+      "sha256": "69f7d3c104ccc8324499ee89078d9d08027019403d5d874d25a522d37e1fb240"
+    },
+    {
+      "path": "src/__tests__/configuration.test.ts",
+      "originalSha256": "3f9ab9a3e914eca2b76f6d5a47ee3a1d338c5b0c2f268323fff0aa294e25e115",
+      "sha256": "3f9ab9a3e914eca2b76f6d5a47ee3a1d338c5b0c2f268323fff0aa294e25e115"
+    },
+    {
+      "path": "src/__tests__/gameMode.test.ts",
+      "originalSha256": "7f2a0e6b3275b53de1118dbf5fd3ef86c30be1ea3172c34e2e5d9021872e2c2f",
+      "sha256": "7f2a0e6b3275b53de1118dbf5fd3ef86c30be1ea3172c34e2e5d9021872e2c2f"
+    },
+    {
+      "path": "src/__tests__/gateway.test.ts",
+      "originalSha256": "2dcd21875f3fac51c736c283ba5a9fe38fa151a8e30b67c65a107b5bf0e1c56e",
+      "sha256": "2dcd21875f3fac51c736c283ba5a9fe38fa151a8e30b67c65a107b5bf0e1c56e"
+    },
+    {
+      "path": "src/__tests__/rate-limits.test.ts",
+      "originalSha256": "eb8dbe6dd1f311248d6d76534b44fc7eea274346b076694c66d7dd2d711ffa1f",
+      "sha256": "eb8dbe6dd1f311248d6d76534b44fc7eea274346b076694c66d7dd2d711ffa1f"
+    },
+    {
+      "path": "src/__tests__/supporter.test.ts",
+      "originalSha256": "bb4813f02cf0901d657e5020b237953556eeda7af56d94a19d9caabc6f52f4c0",
+      "sha256": "bb4813f02cf0901d657e5020b237953556eeda7af56d94a19d9caabc6f52f4c0"
+    },
+    {
+      "path": "src/__tests__/tarkov-catalog-cache.test.ts",
+      "originalSha256": "834916fcdf75c4d9c76dd1b801ba91772fb04c8ba3bd7f51bd058559c81f16c3",
+      "sha256": "834916fcdf75c4d9c76dd1b801ba91772fb04c8ba3bd7f51bd058559c81f16c3"
+    },
+    {
+      "path": "src/__tests__/tarkov-data-mode.test.ts",
+      "originalSha256": "ad9957d90e4fcd854189a2b96e52cdf9f9e6d2f92b2ad0998944ed4bb7dfea18",
+      "sha256": "ad9957d90e4fcd854189a2b96e52cdf9f9e6d2f92b2ad0998944ed4bb7dfea18"
+    },
+    {
+      "path": "src/__tests__/token-usage.test.ts",
+      "originalSha256": "0a3ff1f7a8db8d324a839651f1aa01523ed452a9863c8c4d1092c13e81149bad",
+      "sha256": "0a3ff1f7a8db8d324a839651f1aa01523ed452a9863c8c4d1092c13e81149bad"
+    },
+    {
+      "path": "src/__tests__/transform.test.ts",
+      "originalSha256": "7eecf1fcf97c73f32d4635f0f0f9014f860e3cce2b955177986a24bd95d8ef3f",
+      "sha256": "7eecf1fcf97c73f32d4635f0f0f9014f860e3cce2b955177986a24bd95d8ef3f"
+    },
+    {
+      "path": "src/__tests__/usage.test.ts",
+      "originalSha256": "d92958c7f4581984f0eba17cad6e59b8d6810662c04257eb88d2c6ca47bf0952",
+      "sha256": "d92958c7f4581984f0eba17cad6e59b8d6810662c04257eb88d2c6ca47bf0952"
+    },
+    {
+      "path": "src/__tests__/userAgent.test.ts",
+      "originalSha256": "6565b3d65b9983d416fd5fa9db169fa355ad3617a2855b20797b6f267628d31b",
+      "sha256": "6565b3d65b9983d416fd5fa9db169fa355ad3617a2855b20797b6f267628d31b"
+    },
+    {
+      "path": "src/__tests__/workerd-smoke.test.ts",
+      "originalSha256": "ab890d00aa1e5c0cb2394f39dcb70feb6aadc73ac8762b71b99ec532f6b34f46",
+      "sha256": "ab890d00aa1e5c0cb2394f39dcb70feb6aadc73ac8762b71b99ec532f6b34f46"
+    },
+    {
+      "path": "tsconfig.json",
+      "originalSha256": "a77346d446780035b9aaf74930443f3363df8161b6e0cbb5016ad073a38a1412",
+      "sha256": "a77346d446780035b9aaf74930443f3363df8161b6e0cbb5016ad073a38a1412"
+    },
+    {
+      "path": "vitest.config.ts",
+      "originalSha256": "aeaa87d7717dae123e2f6d1dfeb1933b9d54f37db34389e0dd148b90bff8b56a",
+      "sha256": "aeaa87d7717dae123e2f6d1dfeb1933b9d54f37db34389e0dd148b90bff8b56a"
+    },
+    {
+      "path": "worker-configuration.d.ts",
+      "originalSha256": "2479c039795397bb414e3c24203a3915b53b0d83e554a4b2c84083bf17e36cc4",
+      "sha256": "2479c039795397bb414e3c24203a3915b53b0d83e554a4b2c84083bf17e36cc4"
+    },
+    {
+      "path": "wrangler.toml",
+      "originalSha256": "89ec4e01c5a6c3d0a83d54cd06252b40fd6c76e38b4973b33b8cf9bd34c5d828",
+      "sha256": "89ec4e01c5a6c3d0a83d54cd06252b40fd6c76e38b4973b33b8cf9bd34c5d828"
+    }
+  ],
+  "adaptations": [
+    "Repository ownership/release documentation",
+    "Frontend-specific dependency policy omitted",
+    "Exact API workspace lockfile and verification-only CI added",
+    "Canonical Git source bytes preserved; checkout/archive line endings fixed to LF",
+    "Contract test watcher runs Vitest alongside compilation; runtime contract source and immutable 0.1.0 release remain unchanged"
+  ]
+}

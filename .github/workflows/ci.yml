@@ -1,0 +1,48 @@
+name: API checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: Activate complete package-manager pin
+        shell: bash
+        run: |
+          corepack enable pnpm
+          corepack prepare "$(node -p 'require("./package.json").packageManager')" --activate
+          test "$(pnpm --version)" = 11.14.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @tarkovtracker/progress-contracts run test
+      - run: pnpm run typecheck
+      - run: pnpm run types:check
+      - run: pnpm run validate:openapi
+      - run: pnpm run test
+      - run: pnpm run build
+      - name: Record reproducible candidate package
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/contracts"
+          pnpm --filter @tarkovtracker/progress-contracts pack --pack-destination "$RUNNER_TEMP/contracts"
+          (cd "$RUNNER_TEMP/contracts" && sha512sum -- *.tgz > SHA512SUMS)
+          pnpm --filter @tarkovtracker/progress-contracts pack --pack-destination "$RUNNER_TEMP/contracts"
+          (cd "$RUNNER_TEMP/contracts" && sha512sum --check SHA512SUMS)
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: progress-contracts-candidate-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/contracts/
