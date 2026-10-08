@@ -10,6 +10,7 @@
     "README.md",
     "LICENSE.md",
     "scripts/watch.mjs",
+    "scripts/watch-tests.mjs",
     "tsconfig.json",
     "vitest.config.ts"
   ],
@@ -54,7 +55,8 @@
     "test": "vitest run",
     "prepack": "pnpm run build",
     "dev:watch": "node scripts/watch.mjs",
-    "watch:tests": "pnpm run dev:watch"
+    "watch:tests": "node scripts/watch-tests.mjs",
+    "vitest:watch": "vitest --watch"
   },
   "devDependencies": {
     "typescript": "6.0.3",

@@ -30,11 +30,6 @@
       "sha256": "0a00b839666fa33ec6a6b72479a077a1cbfcdb6b9f0365690720219fa0baf11f"
     },
     {
-      "path": "progress-contracts/package.json",
-      "originalSha256": "6b024b223d8bbd0e8cd38c6c2cac25ae7883861fec033ef2b06732717d4b2c8b",
-      "sha256": "6b024b223d8bbd0e8cd38c6c2cac25ae7883861fec033ef2b06732717d4b2c8b"
-    },
-    {
       "path": "progress-contracts/scripts/watch.mjs",
       "originalSha256": "7b892173b7315434078c4eb959920f4b7b815347991a9eb1c45f317f35516b82",
       "sha256": "7b892173b7315434078c4eb959920f4b7b815347991a9eb1c45f317f35516b82"
@@ -369,6 +364,7 @@
     "Repository ownership/release documentation",
     "Frontend-specific dependency policy omitted",
     "Exact API workspace lockfile and verification-only CI added",
-    "Canonical Git source bytes preserved; checkout/archive line endings fixed to LF"
+    "Canonical Git source bytes preserved; checkout/archive line endings fixed to LF",
+    "Contract test watcher runs Vitest alongside compilation; runtime contract source and immutable 0.1.0 release remain unchanged"
   ]
 }
