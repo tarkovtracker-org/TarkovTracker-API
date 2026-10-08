@@ -39,7 +39,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/contracts"
           pnpm --filter @tarkovtracker/progress-contracts pack --pack-destination "$RUNNER_TEMP/contracts"
-          (cd "$RUNNER_TEMP/contracts" && sha512sum *.tgz > SHA512SUMS)
+          (cd "$RUNNER_TEMP/contracts" && sha512sum -- *.tgz > SHA512SUMS)
           pnpm --filter @tarkovtracker/progress-contracts pack --pack-destination "$RUNNER_TEMP/contracts"
           (cd "$RUNNER_TEMP/contracts" && sha512sum --check SHA512SUMS)
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
