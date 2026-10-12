@@ -1,11 +1,9 @@
 import { execFileSync } from "node:child_process";
-
 const pnpmCli = process.env.npm_execpath;
 if (!pnpmCli)
   throw new Error(
     "Run the contract test watcher through pnpm run watch:tests.",
   );
-
 // Consumer test paths belong to the caller; always watch every contract test here.
 try {
   execFileSync(
