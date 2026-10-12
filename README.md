@@ -49,3 +49,14 @@ future rule/API changes need corresponding cross-repository integration evidence
 
 See [RELEASE.md](RELEASE.md) for version-pinned GitHub Release packages and the staged frontend
 dependency update. This draft has no production deployment workflow or new credentials.
+
+Legacy address retirement is coordinated with
+[the frontend promotion runbook](https://github.com/tarkovtracker-org/TarkovTracker/blob/main/docs/api-ownership.md#legacy-address-retirement).
+The initial Wrangler alignment retains the ten apex/www legacy bindings and the API-host
+catch-all (eleven total). It removes only six redundant/retired bindings: apex/www `/health`
+and four redundant API-host patterns, persisting the operator's removals across redeployments.
+Do not remove the remaining legacy bindings until the
+Pages retirement handler is deployed and verified at its exact revision. Their removal is a
+separate held stage, leaving only `api.tarkovtracker.org/*`; Pages then owns the static 410 JSON
+migration response. API `/health` remains 200 through the catch-all. No API source connection,
+production deployment, or route mutation is authorized by preparing these changes.
