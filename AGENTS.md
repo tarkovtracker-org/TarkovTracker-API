@@ -24,7 +24,8 @@ validation errors retain rate-limit headers. Public progress clients supply a 5â
 `User-Agent`.
 
 `supabase-surface.json` lists every Supabase relation, column, RPC and Auth endpoint `src/` uses;
-`scripts/supabase-surface.test.ts` keeps it exact. A change to it needs the matching
+`scripts/supabase-surface.test.ts` keeps its names exact; RPC argument and return types are
+enforced only by the TarkovTracker pgTAP suite. A manifest change needs the matching
 TarkovTracker schema assertion, and any new object must ship there first.
 Migration assertions and browser/Worker parity remain in the frontend repository. Rule/API
 changes need corresponding integration evidence for PvP, PvE and Seasonal modes before release.
