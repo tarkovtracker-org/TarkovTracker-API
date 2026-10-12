@@ -11,6 +11,7 @@ symlinks. Consumer commands prepare changed compiled contracts; edit source, nev
 Use the pinned Node/pnpm versions and committed lockfile. Install with
 `pnpm install --frozen-lockfile`; validate with:
 
+- `pnpm run lint:blank-lines` (no removable blank lines; `--fix` rewrites)
 - `pnpm --filter @tarkovtracker/progress-contracts run test`
 - `pnpm run typecheck`
 - `pnpm run types:check`
@@ -21,7 +22,10 @@ Use the pinned Node/pnpm versions and committed lockfile. Install with
 Preserve Worker `api-gateway`, class `ApiGatewayRateLimiter`, migration `v1`, namespace/state and
 the existing Pages binding/DO protocol. Authenticate and enforce quota before decoding input;
 validation errors retain rate-limit headers. Public progress clients supply a 5–200 character
-`User-Agent`.
+`User-Agent`. A request makes at most one Durable Object call (the daily quota); both limiters
+fail open. Read responses stay `private` with payload-derived ETags. When a change alters
+documented behavior, update the owning doc in `docs/` (`api.md` client contract,
+`progress-api.md` flow/invariants, `rate-limiting.md`, `operations.md`) in the same change.
 
 `supabase-surface.json` lists every Supabase relation, column, RPC and Auth endpoint `src/` uses;
 `scripts/supabase-surface.test.ts` keeps its names exact; RPC argument and return types are
@@ -32,7 +36,8 @@ changes need corresponding integration evidence for PvP, PvE and Seasonal modes 
 See `RELEASE.md` for the immutable package and frontend version-update path. Production cutover,
 merge, integration/permission changes and deployment require their own authorization.
 
-`.github/main-ruleset.json` is the reviewed `main` ruleset (PR required, squash only, strict `api`
-and `CodeQL` checks, no bypass). Changing it in a PR does not apply it; an authorized maintainer
+`.github/main-ruleset.json` is the reviewed `main` ruleset (PR required, squash only, strict `api`,
+`security`, `workflow-lint` and `CodeQL` checks, no bypass). Changing it in a PR does not apply
+it; an authorized maintainer
 applies it with `gh api -X POST repos/tarkovtracker-org/TarkovTracker-API/rulesets --input
 .github/main-ruleset.json` (or `PUT .../rulesets/<id>` to update). Never weaken it to land a change.

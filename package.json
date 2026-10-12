@@ -13,12 +13,13 @@
     "test": "vitest run",
     "build": "node scripts/prepare-contracts.mjs && wrangler deploy --config wrangler.toml --dry-run",
     "check:boundaries": "node scripts/check-boundaries.mjs",
+    "lint:blank-lines": "node scripts/checks/lint-blank-lines.mjs",
     "dev:watch": "wrangler dev",
     "test:watch": "node scripts/prepare-contracts.mjs && pnpm --parallel --filter api-gateway --filter @tarkovtracker/progress-contracts run watch:tests",
     "watch:tests": "vitest --watch"
   },
   "devDependencies": {
-    "@apidevtools/swagger-parser": "13.0.0",
+    "@apidevtools/swagger-parser": "13.1.0",
     "@types/node": "26.6.4",
     "openapi-types": "12.1.3",
     "tsx": "4.23.15",
