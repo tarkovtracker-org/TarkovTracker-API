@@ -53,8 +53,8 @@ dependency update. This draft has no production deployment workflow or new crede
 Legacy address retirement is coordinated with
 [the frontend promotion runbook](https://github.com/tarkovtracker-org/TarkovTracker/blob/main/docs/api-ownership.md#legacy-address-retirement).
 The apex/www legacy bindings are retired: Wrangler binds only `api.tarkovtracker.org/*`, and
-Pages owns the static 410 JSON migration response on the apex and www (the www canonical
-redirect exempts exactly the retired families). API `/health` remains 200 through the
+Pages owns the static 410 JSON migration response on the apex; www keeps its canonical 308 to
+the apex, which then returns the 410. API `/health` remains 200 through the
 catch-all. Keep this file aligned with the frontend gateway config so a later deployment cannot
 restore the legacy bindings. Connecting this repository to Worker Builds or production deploys
 remains a separate approved cutover.
