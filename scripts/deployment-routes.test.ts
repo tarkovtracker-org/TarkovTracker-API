@@ -12,6 +12,6 @@ describe("legacy route retirement", () => {
     );
     expect(patterns).toEqual(["api.tarkovtracker.org/*"]);
     // Catch any legacy apex/www address however the binding is written.
-    expect(config).not.toMatch(/(^|[^.\w])(www\.)?tarkovtracker\.org\/api/m);
+    expect(config).not.toMatch(/(^|[^.\w])(www\.)?tarkovtracker\.org\/api/im);
   });
 });
