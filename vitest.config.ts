@@ -17,7 +17,7 @@ export default defineConfig({
     maxWorkers: 2,
     globals: true,
     clearMocks: true,
-    include: ['src/**/__tests__/**/*.test.ts', 'scripts/*.test.ts'],
+    include: ['src/**/__tests__/**/*.test.ts', 'scripts/*.test.ts', 'scripts/checks/*.test.mjs'],
     reporters: process.env.CI ? ['default', 'github-actions'] : ['default'],
   },
 });

@@ -13,6 +13,7 @@
     "test": "vitest run",
     "build": "node scripts/prepare-contracts.mjs && wrangler deploy --config wrangler.toml --dry-run",
     "check:boundaries": "node scripts/check-boundaries.mjs",
+    "lint:blank-lines": "node scripts/checks/lint-blank-lines.mjs",
     "dev:watch": "wrangler dev",
     "test:watch": "node scripts/prepare-contracts.mjs && pnpm --parallel --filter api-gateway --filter @tarkovtracker/progress-contracts run watch:tests",
     "watch:tests": "vitest --watch"

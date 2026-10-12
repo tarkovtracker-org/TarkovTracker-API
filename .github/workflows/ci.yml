@@ -3,6 +3,9 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Weekly run so new advisories and leaked-secret rules are re-checked without a code change.
+  schedule:
+    - cron: '0 0 * * 0'
 permissions:
   contents: read
 jobs:
@@ -28,6 +31,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint:blank-lines
       - run: pnpm --filter @tarkovtracker/progress-contracts run test
       - run: pnpm run typecheck
       - run: pnpm run types:check
@@ -46,3 +50,101 @@ jobs:
         with:
           name: progress-contracts-candidate-${{ github.event.pull_request.head.sha || github.sha }}
           path: ${{ runner.temp }}/contracts/
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: Activate complete package-manager pin
+        shell: bash
+        run: |
+          corepack enable pnpm
+          corepack prepare "$(node -p 'require("./package.json").packageManager')" --activate
+          test "$(pnpm --version)" = 11.14.0
+      # Audits read the committed lockfile; no install is needed.
+      - name: Audit production dependencies
+        # Blocking: any advisory in a runtime dependency fails CI.
+        run: pnpm audit --prod
+      - name: Audit all dependencies
+        # Wrangler, esbuild and workerd build the deployed bundle, so high-severity findings in
+        # development dependencies are reported. Advisory only, as in TarkovTracker.
+        run: |
+          if ! pnpm audit --audit-level=high; then
+            echo "::warning title=Dependency audit::High-severity findings exist in development dependencies."
+          fi
+      - name: Install Gitleaks CLI
+        shell: bash
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          set -euo pipefail
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          curl --proto '=https' --tlsv1.2 -sSfL "$base/$archive" -o "$RUNNER_TEMP/$archive"
+          curl --proto '=https' --tlsv1.2 -sSfL "$base/gitleaks_${GITLEAKS_VERSION}_checksums.txt" \
+            -o "$RUNNER_TEMP/gitleaks_checksums.txt"
+          awk -v archive="$archive" '$2 == archive { print }' "$RUNNER_TEMP/gitleaks_checksums.txt" \
+            > "$RUNNER_TEMP/gitleaks_checksum.txt"
+          test -s "$RUNNER_TEMP/gitleaks_checksum.txt"
+          (cd "$RUNNER_TEMP" && sha256sum --check --strict gitleaks_checksum.txt)
+          mkdir -p "$RUNNER_TEMP/gitleaks"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/gitleaks"
+          echo "$RUNNER_TEMP/gitleaks" >> "$GITHUB_PATH"
+      - name: Verify Gitleaks detects a canary secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          b64url() { printf '%s' "$1" | base64 -w0 | tr '+/' '-_' | tr -d '='; }
+          canary_dir="$RUNNER_TEMP/gitleaks-canary"
+          mkdir -p "$canary_dir"
+          header="$(b64url '{"alg":"HS256","typ":"JWT"}')"
+          payload="$(b64url '{"iss":"supabase","ref":"canaryprojectref0000","role":"service_role","iat":1700000000,"exp":2000000000}')"
+          signature="$(head -c 32 /dev/urandom | base64 -w0 | tr '+/' '-_' | tr -d '=')"
+          printf 'SUPABASE_SERVICE_ROLE_KEY = "%s.%s.%s"\n' "$header" "$payload" "$signature" > "$canary_dir/wrangler.toml"
+          # A distinct findings exit code keeps scan errors (exit 1) from counting as detection.
+          status=0
+          gitleaks dir "$canary_dir" --config .github/.gitleaks.toml --exit-code 42 --no-banner --redact || status=$?
+          if [ "$status" -ne 42 ]; then
+            echo "::error::Gitleaks canary exited $status, expected 42."
+            exit 1
+          fi
+      - name: Gitleaks scan
+        run: gitleaks git . --config .github/.gitleaks.toml --exit-code 1 --no-banner --redact
+  workflow-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Lint GitHub Actions workflows
+        # Same pinned, checksum-verified actionlint and zizmor releases as TarkovTracker.
+        env:
+          ACTIONLINT_VERSION: 1.7.7
+          ACTIONLINT_SHA256: 023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757
+          ZIZMOR_VERSION: 1.30.1
+          ZIZMOR_SHA256: e65324f4430c2717591937edcec90ccbefaf14c174f8ec9415e03ca875b46e1a
+          # Read-only token enables zizmor's online audits (impostor commits, known-vulnerable actions).
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          fetch_verified() {
+            local archive="$RUNNER_TEMP/$1.tar.gz"
+            curl --proto '=https' --proto-redir '=https' -sSfL -o "$archive" "$2"
+            echo "$3  ${archive}" | sha256sum --check --strict
+            tar -xzf "$archive" -C "$RUNNER_TEMP" "$1"
+          }
+          fetch_verified actionlint \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            "$ACTIONLINT_SHA256"
+          fetch_verified zizmor \
+            "https://github.com/zizmorcore/zizmor/releases/download/v${ZIZMOR_VERSION}/zizmor-x86_64-unknown-linux-gnu.tar.gz" \
+            "$ZIZMOR_SHA256"
+          "$RUNNER_TEMP/actionlint" -color
+          "$RUNNER_TEMP/zizmor" --no-progress --min-severity low .github/
