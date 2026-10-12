@@ -99,8 +99,9 @@ always send `If-None-Match`.
 
 ## Errors
 
-Responses use `{"success": false, "error": "..."}`. Client-correctable problems keep specific
-`4xx` messages. Unexpected failures always return `500` with the fixed body
+API-host responses use `{"success": false, "error": "..."}`. Client-correctable problems keep
+specific `4xx` messages. Requests on any other host (except `/health`) get a plain-text
+`Not Found` 404 instead. Unexpected failures always return `500` with the fixed body
 `{"success": false, "error": "Internal server error"}`; details are logged server-side only, so
 clients must not parse `500` bodies. Missing or malformed upstream task/hideout catalogs return
 `503` in the same envelope.

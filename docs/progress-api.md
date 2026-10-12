@@ -170,8 +170,9 @@ sequenceDiagram
 - Invalid task/objective states return 400 with rate-limit headers after authentication and quota
   checks. Error messages preserve scalar values but label arrays and objects without invoking
   client-controlled string coercion, which could otherwise turn malformed input into a 500.
-- Progress reads select one exact `(user_id, game_mode, season_number)` row and account metadata;
-  they never read another mode's progress or use `select=*`.
+- Personal progress reads select one exact `(user_id, game_mode, season_number)` row and account
+  metadata; team reads select that same mode and season for each member. Neither reads another
+  mode's progress or uses `select=*`.
 - Read responses derive the `ETag` from the serialized payload (not `updated_at`), so a `304` can
   never hide a change that came from task metadata or invalidation rather than the user's row.
 - Read responses are `private` (token-scoped) — no shared/edge caching of authenticated progress.

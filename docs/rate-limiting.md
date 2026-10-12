@@ -23,7 +23,8 @@ flowchart LR
   60 seconds) keyed `api:<CF-Connecting-IP>`, before token lookup. Per-location and eventually
   consistent; it shields `api_tokens` and Supabase from floods. `period` must equal
   `ABUSE_GATE_PERIOD_SEC` in `src/limits.ts`.
-- **Daily quota.** One `ApiGatewayRateLimiter` Durable Object call per request, keyed
+- **Daily quota.** At most one `ApiGatewayRateLimiter` Durable Object call per request (none when
+  the abuse gate or token checks reject it first), keyed
   `daily-read:<userId>` or `daily-write:<userId>`, UTC-day window, retained state. Limits are
   `TIER_LIMITS` in `src/limits.ts`. A unit is consumed when an authenticated request is admitted;
   downstream failures are not refunded. There is no burst bucket, IP backstop or refund

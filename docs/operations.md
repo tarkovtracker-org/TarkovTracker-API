@@ -61,7 +61,9 @@ Never commit values.
 
 `pnpm exec wrangler rollback --config wrangler.toml` restores the previous Worker version
 (`wrangler deployments list` shows candidates). Rollback does not touch DO state or the database.
-Then revert the offending commit on `main` so the next build does not redeploy it.
+Then revert the offending commit on the repository that is the current deployment source (the
+legacy TarkovTracker copy until cutover, this repository after), and keep the other source in
+step, so the next build does not redeploy it.
 
 ## Incident triage
 
