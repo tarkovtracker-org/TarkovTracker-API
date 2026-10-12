@@ -29,6 +29,7 @@ Use Node `24.21.0` and the complete pnpm `11.14.0` pin in `package.json`.
 Run `pnpm install --frozen-lockfile`, then:
 
 ```sh
+pnpm run lint:blank-lines
 pnpm --filter @tarkovtracker/progress-contracts run test
 pnpm run typecheck
 pnpm run types:check
