@@ -82,6 +82,16 @@ the old settings and retained Tracker commit containing `workers/api-gateway` ar
 an explicitly approved temporary rollback ref/build; target that retained commit rather than the
 moving branch. Consumer contracts/pins and DB/Pages ownership remain independent of Worker rollback.
 
+The retained pre-cutover source settings were Tracker repository `1098874862` under
+`tarkovtracker-org`, root `workers/api-gateway`, empty build command, deploy command
+`npx wrangler deploy`, build caching enabled, previews disabled, no path exclusions or build
+environment variables, and the existing build-token identifier. Its watch paths were
+`workers/api-gateway/**`, `shared/**`, `app/utils/**`, `app/features/resources/resourceData.ts`,
+`app/locales/en.json`, `package.json`, `tsconfig.json`, `nuxt.config.ts`, `pnpm-lock.yaml`,
+`pnpm-workspace.yaml`, `patches/**` and `.nvmrc`. The old connection watched `main`; after cleanup,
+an approved source rollback must use a temporary ref retaining commit `92fc39f79f724f4cff93b076d8b4debe57c70108`
+instead. Reuse an existing authorized build token without exposing its value or expanding grants.
+
 ## Incident triage
 
 1. Workers Builds and Worker logs: failed build, missing secret, exceptions.
