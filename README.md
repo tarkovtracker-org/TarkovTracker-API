@@ -58,7 +58,7 @@ and four redundant API-host patterns, persisting the operator's removals across 
 Do not remove the remaining legacy bindings until the
 Pages retirement handler is deployed and verified at its exact revision. Before removal,
 the frontend runbook also requires a separately approved narrow exception to the current www
-308 redirect and verified www Pages ingress; the observed Pages custom domain list contains
+308 redirect. Separately, www Pages ingress must be verified; the observed Pages custom domain list contains
 only the apex, and compiled-worker tests bypass edge redirects. Keep the direct www 410/204
 contract unless a different redirect contract is separately accepted. No edge/domain changes
 are included in this source alignment. Their removal is a
