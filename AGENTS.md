@@ -21,7 +21,10 @@ Use the pinned Node/pnpm versions and committed lockfile. Install with
 Preserve Worker `api-gateway`, class `ApiGatewayRateLimiter`, migration `v1`, namespace/state and
 the existing Pages binding/DO protocol. Authenticate and enforce quota before decoding input;
 validation errors retain rate-limit headers. Public progress clients supply a 5–200 character
-`User-Agent`.
+`User-Agent`. A request makes at most one Durable Object call (the daily quota); both limiters
+fail open. Read responses stay `private` with payload-derived ETags. When a change alters
+documented behavior, update the owning doc in `docs/` (`api.md` client contract,
+`progress-api.md` flow/invariants, `rate-limiting.md`, `operations.md`) in the same change.
 
 `supabase-surface.json` lists every Supabase relation, column, RPC and Auth endpoint `src/` uses;
 `scripts/supabase-surface.test.ts` keeps it exact. A change to it needs the matching
