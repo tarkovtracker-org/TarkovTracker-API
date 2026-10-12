@@ -60,13 +60,13 @@ The Worker logs structured `daily_quota_429` (identifies `user_id`, `token_id`) 
 
 Do not generate load by deliberately triggering denials. TarkovTracker's admin
 `GET /api/admin/api-usage` reports top consumers from `api_usage_daily`. Logpush, WAF
-verification and alerting are open work.
+verification and alerting are open work ([#17](https://github.com/tarkovtracker-org/TarkovTracker-API/issues/17)).
 
 ## Retention
 
-| Store                   | Retention                                                                              |
-| ----------------------- | -------------------------------------------------------------------------------------- |
-| DO ephemeral keys       | Self-clean with alarms at `resetAt + 1s` (Pages keys).                                 |
-| DO retained keys        | Expire by window logic.                                                                |
-| Legacy burst/IP DO keys | Orphaned by the daily-quota refactor (no cleanup alarms); staged cleanup is open work. |
-| `api_usage_daily`       | 180 days, nightly pg_cron job owned by TarkovTracker `supabase/`.                      |
+| Store                   | Retention                                                                                                                                            |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DO ephemeral keys       | Self-clean with alarms at `resetAt + 1s` (Pages keys).                                                                                               |
+| DO retained keys        | Expire by window logic.                                                                                                                              |
+| Legacy burst/IP DO keys | Orphaned by the daily-quota refactor (no cleanup alarms); staged cleanup is [#16](https://github.com/tarkovtracker-org/TarkovTracker-API/issues/16). |
+| `api_usage_daily`       | 180 days, nightly pg_cron job owned by TarkovTracker `supabase/`.                                                                                    |
