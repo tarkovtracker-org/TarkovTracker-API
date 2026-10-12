@@ -58,7 +58,6 @@ function isExpired(expiresAt: string | null | undefined): boolean {
   // supporter row cannot grant elevated limits indefinitely.
   return !Number.isFinite(ts) || ts <= Date.now();
 }
-
 const tierCacheSeconds = (row: SupporterRow | undefined, tier: ApiTier): number => {
   if (tier === 'free' || !row?.expires_at) return TIER_CACHE_TTL_SECONDS;
   return Math.min(
