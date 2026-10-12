@@ -23,6 +23,9 @@ the existing Pages binding/DO protocol. Authenticate and enforce quota before de
 validation errors retain rate-limit headers. Public progress clients supply a 5–200 character
 `User-Agent`.
 
+`supabase-surface.json` lists every Supabase relation, column, RPC and Auth endpoint `src/` uses;
+`scripts/supabase-surface.test.ts` keeps it exact. A change to it needs the matching
+TarkovTracker schema assertion, and any new object must ship there first.
 Migration assertions and browser/Worker parity remain in the frontend repository. Rule/API
 changes need corresponding integration evidence for PvP, PvE and Seasonal modes before release.
 See `RELEASE.md` for the immutable package and frontend version-update path. Production cutover,
