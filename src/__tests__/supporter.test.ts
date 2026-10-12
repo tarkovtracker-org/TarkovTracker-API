@@ -178,7 +178,6 @@ describe('resolveTier', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     }
   );
-
   it.each(['{"code":"PGRST999"}', 'not-json'])(
     'does not hide an unrelated 404 %s',
     async (body) => {
