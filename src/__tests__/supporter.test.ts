@@ -122,6 +122,41 @@ describe('resolveTier', () => {
     expect(await resolveTier(baseEnv, 'user-1')).toBe('scav');
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+  it('normalizes base URLs for entitlement and rollout fallback reads', async () => {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        urls.push(String(input));
+        return urls.length === 1
+          ? new Response(JSON.stringify({ code: 'PGRST205' }), { status: 404 })
+          : supporterResponse([{ tier: 'timmy', status: 'active', expires_at: null }]);
+      })
+    );
+    expect(
+      await resolveTier(
+        { ...baseEnv, SUPABASE_URL: 'https://supabase.example/prefix///?old=true#fragment' },
+        'user-1'
+      )
+    ).toBe('timmy');
+    expect(urls).toEqual([
+      'https://supabase.example/prefix/rest/v1/supporter_entitlements?user_id=eq.user-1&select=tier,status,expires_at&limit=1',
+      'https://supabase.example/prefix/rest/v1/supporters?user_id=eq.user-1&select=tier,status,expires_at&limit=1',
+    ]);
+  });
+  it.each(['http://supabase.example', 'ftp://supabase.example', 'not-a-url'])(
+    'rejects unsafe or malformed base %s without sending credentials or caching the fallback',
+    async (base) => {
+      const fetchMock = vi.fn(async () =>
+        supporterResponse([{ tier: 'timmy', status: 'active', expires_at: null }])
+      );
+      vi.stubGlobal('fetch', fetchMock);
+      expect(await resolveTier({ ...baseEnv, SUPABASE_URL: base }, 'user-1')).toBe('free');
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(await resolveTier(baseEnv, 'user-1')).toBe('timmy');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    }
+  );
   it('uses legacy access only when the entitlement view is specifically missing during rollout', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) =>
       String(input).includes('supporter_entitlements')
