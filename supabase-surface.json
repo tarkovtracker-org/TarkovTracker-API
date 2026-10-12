@@ -1,5 +1,5 @@
 {
-  "$comment": "Supabase objects this Worker calls with the service_role key. The schema is owned by TarkovTracker supabase/; its pgTAP suite asserts the same objects. scripts/supabase-surface.test.ts keeps this file equal to src/ usage.",
+  "$comment": "Supabase objects this Worker calls with the service_role key. The schema is owned by TarkovTracker supabase/; its pgTAP suite asserts the same objects. scripts/supabase-surface.test.ts keeps relation, column, RPC, argument-name and Auth entries equal to src/ usage. RPC argument types and returns cannot be read from src/; TarkovTracker supabase/tests/database/api_gateway_surface.test.sql enforces them against the schema, so change both together.",
   "role": "service_role",
   "relations": {
     "api_tokens": {

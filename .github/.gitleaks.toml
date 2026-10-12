@@ -1,0 +1,4 @@
+[extend]
+# Extend the built-in detection rules; without this an allowlist-only
+# config replaces the default rule set and the scan runs with zero rules.
+useDefault = true
