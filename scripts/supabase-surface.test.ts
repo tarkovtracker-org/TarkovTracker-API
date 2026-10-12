@@ -50,13 +50,15 @@ const selectColumns = (source: string, value: string): string[] => {
 const PAGING_PARAMS = new Set(['limit', 'offset']);
 const LOGICAL_PARAMS = new Set(['or', 'and']);
 // Every PostgREST query parameter other than paging names a column, whatever its operator
-// (`eq`, `is`, `neq`, ranges, ...), so new filters cannot add an unrecorded dependency.
+// (`eq`, `is`, `neq`, ranges, ...), so new filters cannot add an unrecorded dependency;
+// `order` and `on_conflict` carry their columns in the value.
 const paramColumns = (source: string, param: string): string[] => {
   const [key, value = ''] = param.split(/=(.*)/s);
   if (LOGICAL_PARAMS.has(key)) throw new Error(`Unsupported logical filter ${param}`);
   if (PAGING_PARAMS.has(key)) return [];
   if (key === 'select') return selectColumns(source, value);
   if (key === 'order') return plainColumns(value.replace(/\.\w+/g, ''), 'order');
+  if (key === 'on_conflict') return plainColumns(value, 'on_conflict');
   return plainColumns(key, 'filter');
 };
 const queryColumns = (source: string, query: string): string[] =>
