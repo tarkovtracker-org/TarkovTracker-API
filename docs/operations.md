@@ -6,18 +6,26 @@ explicit authorization.
 
 ## Deployment source
 
-**Until the approved cutover, production still deploys from TarkovTracker.** Cloudflare Workers
-Builds runs `npx wrangler deploy` in `TarkovTracker/workers/api-gateway` on watched `main`
-pushes (that repository's
-[runbook](https://github.com/tarkovtracker-org/TarkovTracker/blob/main/docs/runbook.md#deployment)
-lists the watch paths). This repository has no deployment workflow; its `main` must stay
-bundle-identical to that legacy source until cutover.
+The approved source cutover completed on 2026-10-12. Cloudflare Workers Builds connects the existing
+`api-gateway` Worker to `tarkovtracker-org/TarkovTracker-API/main`, root `/`, with an empty build
+command and deploy command `pnpm run deploy`. That command prepares workspace contracts before
+Wrangler bundles the Worker. A plain `npx wrangler deploy` omits that preparation. The Tracker
+build trigger is disconnected; only this repository deploys the Worker. Build caching remains
+enabled, preview builds remain disabled, and the existing build-token identifier is reused.
 
-At cutover the Workers Builds connection moves here, with root `/` and build command
-`node scripts/prepare-contracts.mjs` (or deploy command `pnpm run deploy`). A plain
-`npx wrangler deploy` without it cannot resolve `@tarkovtracker/progress-contracts/*`, because the
-workspace package's `dist/` is generated. Disconnect the TarkovTracker trigger at the same time so
-two sources never deploy the same Worker.
+Watch paths are `src/**`, `progress-contracts/**`, `scripts/prepare-contracts.mjs`, `package.json`,
+`pnpm-lock.yaml`, `pnpm-workspace.yaml`, `tsconfig.json`, `worker-configuration.d.ts`,
+`wrangler.toml`, `.nvmrc` and `.npmrc`, with no exclusions. Keep these aligned with deployment
+inputs without restoring a second source trigger. GitHub Actions validates; it does not deploy.
+
+Cutover candidate `655b825ddfc863a2bc56f88eea97a5bbb15744ce` (source-only tag `v0.1.2`) built as
+`4ffaa165-f64f-4eb0-b21f-b2821e30f97a` and became active version
+`2043aeb0-6daa-47f2-af25-26a267ddbceb` at 100%. The contracts archive remains `v0.1.0`.
+Worker/class/migration identity, DO namespace `832c68d546974f9884747962b5efe97d`, abuse namespace
+`1001`, route `api.tarkovtracker.org/*`, secrets and the Pages cross-script binding were preserved.
+Tracker [cleanup PR #1183](https://github.com/tarkovtracker-org/TarkovTracker/pull/1183) removes the
+duplicate gateway; consumer parity and Supabase assertions remain there. That cleanup is pending
+until its PR merges.
 
 ## Configuration
 
@@ -59,11 +67,20 @@ Never commit values.
 
 ## Rollback
 
-`pnpm exec wrangler rollback --config wrangler.toml` restores the previous Worker version
-(`wrangler deployments list` shows candidates). Rollback does not touch DO state or the database.
-Then revert the offending commit on the repository that is the current deployment source (the
-legacy TarkovTracker copy until cutover, this repository after), and keep the other source in
-step, so the next build does not redeploy it.
+Before an approved rollback, disable/disconnect the API build trigger and cancel unfinished builds
+so another build cannot overwrite recovery. Restore an explicitly verified retained Worker version
+at 100%, preserving the existing Worker, secrets, DO namespace/state and database. For this cutover,
+the retained pre-migration version is `e470b448-d198-4138-9da4-054fb937e0ed`, built from Tracker
+commit `92fc39f79f724f4cff93b076d8b4debe57c70108`. Use `pnpm exec wrangler rollback <VERSION_ID> --config wrangler.toml`
+from the API checkout, then verify the active deployment and read-only production behavior.
+Do not delete/recreate the Worker or DO, reset state, or create/copy secrets.
+
+Fix/revert the offending API repository change through review, validate it, and re-enable only one
+source trigger after recovery is verified. Do not synchronize a deleted Tracker gateway or point
+legacy build settings at post-cleanup Tracker `main`. If a source-connection rollback is necessary,
+the old settings and retained Tracker commit containing `workers/api-gateway` are available for
+an explicitly approved temporary rollback ref/build; target that retained commit rather than the
+moving branch. Consumer contracts/pins and DB/Pages ownership remain independent of Worker rollback.
 
 ## Incident triage
 
