@@ -1,0 +1,76 @@
+{
+  "$comment": "Supabase objects this Worker calls with the service_role key. The schema is owned by TarkovTracker supabase/; its pgTAP suite asserts the same objects. scripts/supabase-surface.test.ts keeps this file equal to src/ usage.",
+  "role": "service_role",
+  "relations": {
+    "api_tokens": {
+      "columns": [
+        "created_at",
+        "expires_at",
+        "game_mode",
+        "is_active",
+        "last_used_at",
+        "note",
+        "permissions",
+        "token_hash",
+        "token_id",
+        "usage_count",
+        "user_id"
+      ],
+      "writes": ["last_used_at"]
+    },
+    "supporter_entitlements": {
+      "columns": ["expires_at", "status", "tier", "user_id"],
+      "writes": []
+    },
+    "supporters": {
+      "$comment": "Read only when supporter_entitlements is missing (PGRST205); schema may deploy after the Worker.",
+      "columns": ["expires_at", "status", "tier", "user_id"],
+      "writes": []
+    },
+    "team_memberships": {
+      "columns": ["game_mode", "team_id", "user_id"],
+      "writes": []
+    },
+    "user_game_mode_progress": {
+      "columns": ["game_mode", "progress_data", "season_number", "user_id"],
+      "writes": []
+    },
+    "user_progress": {
+      "columns": ["game_edition", "user_id"],
+      "writes": []
+    }
+  },
+  "functions": {
+    "get_active_season_number": {
+      "args": [],
+      "returns": "smallint"
+    },
+    "increment_token_usage": {
+      "args": [["p_token_id", "uuid"]],
+      "returns": "void"
+    },
+    "merge_progress_data": {
+      "args": [
+        ["p_user_id", "uuid"],
+        ["p_field", "text"],
+        ["p_task_completions", "jsonb"],
+        ["p_task_objectives", "jsonb"],
+        ["p_set", "jsonb"]
+      ],
+      "returns": "integer"
+    },
+    "record_api_usage": {
+      "args": [
+        ["p_user_id", "uuid"],
+        ["p_token_id", "text"],
+        ["p_tier", "text"],
+        ["p_reads", "integer"],
+        ["p_writes", "integer"],
+        ["p_throttled", "integer"],
+        ["p_user_agent", "text"]
+      ],
+      "returns": "void"
+    }
+  },
+  "auth": ["admin/users"]
+}
