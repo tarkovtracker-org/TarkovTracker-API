@@ -1,0 +1,88 @@
+version: 2
+updates:
+  # package-ecosystem remains "npm" for pnpm projects; Dependabot detects pnpm-lock.yaml.
+  - package-ecosystem: npm
+    directories:
+      - /
+      - /progress-contracts
+    schedule:
+      interval: weekly
+      day: monday
+      time: '03:00'
+      timezone: America/New_York
+    open-pull-requests-limit: 3
+    rebase-strategy: auto
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+    commit-message:
+      prefix: chore(deps)
+      prefix-development: chore(deps)
+    versioning-strategy: increase-if-necessary
+    allow:
+      - dependency-type: direct
+    ignore:
+      # The workspace contracts package is linked, never fetched from a registry.
+      - dependency-name: '@tarkovtracker/progress-contracts'
+    groups:
+      # Wrangler pins workerd and the Workers runtime types the gateway is validated against.
+      cloudflare-tooling:
+        group-by: dependency-name
+        patterns:
+          - wrangler
+          - '@cloudflare/*'
+        update-types:
+          - minor
+          - patch
+      # typescript and vitest are pinned in both workspace packages; keep them in lockstep.
+      typescript-and-types:
+        group-by: dependency-name
+        dependency-type: development
+        patterns:
+          - typescript
+          - '@types/*'
+          - tsx
+        update-types:
+          - minor
+          - patch
+      testing-tooling:
+        group-by: dependency-name
+        dependency-type: development
+        patterns:
+          - vitest
+          - '@vitest/*'
+        update-types:
+          - minor
+          - patch
+      remaining-npm:
+        group-by: dependency-name
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      day: monday
+      time: '04:00'
+      timezone: America/New_York
+    open-pull-requests-limit: 1
+    rebase-strategy: auto
+    # Let newly published action releases settle before adopting them (supply-chain hygiene).
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: chore(ci)
+    groups:
+      official-actions:
+        patterns:
+          - actions/*
+          - github/codeql-action
+        update-types:
+          - major
+          - minor
+          - patch
