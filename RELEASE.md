@@ -12,8 +12,10 @@ do not publish replacement contracts archives. For a new contracts release:
 2. Run the frozen-lock install, contracts/gateway tests, boundary/type/schema checks and dry-run
    build at that commit. Record frontend/Worker parity for PvP, PvE and Seasonal modes against
    the corresponding reviewed TarkovTracker commit. Keep SQL assertions with Supabase.
-3. Fix the package version before freezing the release commit. The first candidate is `0.1.0`;
-   each subsequent release changes it. Pack twice with the pinned tools, compare SHA-512, and
+3. Fix a new package version before freezing the release commit. The next patch candidate is
+   `0.1.3` if its matching tag is still unused; verify the tag first and choose the appropriate
+   higher version for the actual change. Never reuse released `0.1.0` or repurpose source-only
+   tags `v0.1.1` / `v0.1.2`. Pack twice with the pinned tools, compare SHA-512, and
    retain the exact tarball, digest, source provenance and validation receipt.
 4. Only after that immutable version is reviewed, create its release/tag and attach the verified
    tarball and checksum. Never publish from an evolving draft or replace a released archive.
