@@ -27,3 +27,8 @@ Migration assertions and browser/Worker parity remain in the frontend repository
 changes need corresponding integration evidence for PvP, PvE and Seasonal modes before release.
 See `RELEASE.md` for the immutable package and frontend version-update path. Production cutover,
 merge, integration/permission changes and deployment require their own authorization.
+
+`.github/main-ruleset.json` is the reviewed `main` ruleset (PR required, squash only, strict `api`
+and `CodeQL` checks, no bypass). Changing it in a PR does not apply it; an authorized maintainer
+applies it with `gh api -X POST repos/tarkovtracker-org/TarkovTracker-API/rulesets --input
+.github/main-ruleset.json` (or `PUT .../rulesets/<id>` to update). Never weaken it to land a change.

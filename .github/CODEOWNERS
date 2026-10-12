@@ -1,0 +1,3 @@
+# Requests review only; .github/main-ruleset.json does not require code-owner approval.
+# Once this repository is the api-gateway production source, a merge to main deploys.
+* @DysektAI
