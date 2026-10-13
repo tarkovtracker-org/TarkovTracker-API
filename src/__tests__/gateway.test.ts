@@ -1173,11 +1173,42 @@ describe('api-gateway', () => {
     expect(res.headers.get('X-RateLimit-Remaining')).toBe('10');
     expect(res.headers.get('X-RateLimit-Reset')).toMatch(/^\d+$/);
   });
-  it('rejects POST /progress/task/objective with negative count', async () => {
-    vi.stubGlobal('fetch', createBaseFetchMock());
-    const res = await worker.fetch(postObjectiveRequest('obj-1', { count: -1 }), BASE_ENV);
-    await expectErrorResponse(res, 400, 'Invalid count (must be a non-negative number)');
-  });
+  it.each([-1, 0, 3])(
+    'objective count %s agrees with the served OpenAPI constraint',
+    async (count) => {
+      let mergePayload: MergeRpcPayload | null = null;
+      vi.stubGlobal(
+        'fetch',
+        createBaseFetchMock({
+          onMerge: (payload) => {
+            mergePayload = payload;
+          },
+        })
+      );
+      const specResponse = await worker.fetch(buildRequest('/openapi.json'), BASE_ENV);
+      const spec = (await specResponse.json()) as {
+        components: {
+          schemas: {
+            ObjectiveUpdateRequest: {
+              properties: { count: { type: string; minimum: number } };
+            };
+          };
+        };
+      };
+      const constraint = spec.components.schemas.ObjectiveUpdateRequest.properties.count;
+      expect(constraint).toMatchObject({ type: 'number', minimum: 0 });
+      const res = await worker.fetch(postObjectiveRequest('obj-1', { count }), BASE_ENV);
+      expect(res.status).toBe(count >= constraint.minimum ? 200 : 400);
+      if (count < 0) {
+        await expectErrorResponse(res, 400, 'Invalid count (must be a non-negative number)');
+        expect(mergePayload).toBeNull();
+      } else {
+        expect(mergePayload).toMatchObject({
+          p_task_objectives: { 'obj-1': { count } },
+        });
+      }
+    }
+  );
   it('accepts POST /progress/task/objective with URL-encoded valid objective ID', async () => {
     let mergePayload: MergeRpcPayload | null = null;
     const fetchMock = createBaseFetchMock({
