@@ -524,7 +524,7 @@ export const OPENAPI_SPEC = {
         type: 'object',
         properties: {
           state: { type: 'string', enum: ['completed', 'uncompleted'] },
-          count: { type: 'number' },
+          count: { type: 'number', minimum: 0 },
         },
         anyOf: [{ required: ['state'] }, { required: ['count'] }],
         examples: [{ state: 'completed' }, { count: 3 }, { state: 'completed', count: 3 }],
