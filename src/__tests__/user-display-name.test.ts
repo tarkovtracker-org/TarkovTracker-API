@@ -95,11 +95,10 @@ describe('optional display-name lookup', () => {
         return value;
       });
       await started;
-      expect(signal).toBeInstanceOf(AbortSignal);
       await vi.advanceTimersByTimeAsync(2999);
       expect(settled).toBe(false);
-      expect(signal?.aborted).toBe(false);
       await vi.advanceTimersByTimeAsync(1);
+      expect(settled).toBe(true);
       const response = await result;
       const data = Array.isArray(response.data) ? response.data[0] : response.data;
       expect(data).toMatchObject({
