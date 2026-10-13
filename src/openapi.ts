@@ -167,6 +167,11 @@ export const OPENAPI_SPEC = {
       PayloadTooLarge: {
         description:
           'JSON request body exceeds 262144 bytes (256 KiB). Includes CORS and daily quota headers.',
+        headers: {
+          'X-RateLimit-Limit': { $ref: '#/components/headers/RateLimitLimit' },
+          'X-RateLimit-Remaining': { $ref: '#/components/headers/RateLimitRemaining' },
+          'X-RateLimit-Reset': { $ref: '#/components/headers/RateLimitReset' },
+        },
         content: {
           'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } },
         },
