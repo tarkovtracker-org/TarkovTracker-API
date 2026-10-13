@@ -33,7 +33,13 @@ const fetchDisplayName = async (env: Env, userId: string): Promise<string | null
     if (!response.ok) return null;
     return resolveDisplayName(metadataRecord(await response.json()));
   } catch (error) {
-    logger.error('[getUserDisplayName] Failed to resolve display name:', error);
+    if (controller.signal.aborted) {
+      logger.warn('[getUserDisplayName] Display name lookup timed out', {
+        timeoutMs: DISPLAY_NAME_FETCH_TIMEOUT_MS,
+      });
+    } else {
+      logger.error('[getUserDisplayName] Failed to resolve display name:', error);
+    }
     return null;
   } finally {
     clearTimeout(timeout);

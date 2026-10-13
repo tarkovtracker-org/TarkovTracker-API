@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleGetProgress } from '../handlers/progress';
 import { handleGetTeamProgress } from '../handlers/team';
 import { deleteMemoryCache } from '../utils/memory-cache';
+import { logger } from '../utils/logger';
 import { getUserDisplayName } from '../utils/user-display-name';
 import type { ApiToken, Env, GameMode } from '../types';
 vi.mock('../services/tarkov', () => ({
@@ -40,12 +41,15 @@ describe('optional display-name lookup', () => {
     deleteMemoryCache('user-display:lookup-user');
   });
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
     vi.useRealTimers();
   });
   it.each(cases)(
     '$endpoint $gameMode progress continues when lookup $phase stall',
     async ({ read, gameMode, phase }) => {
+      const warning = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+      const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
       let signal: AbortSignal | null | undefined;
       let lookupStarted!: () => void;
       const started = new Promise<void>((resolve) => {
@@ -108,6 +112,8 @@ describe('optional display-name lookup', () => {
         gameEdition: 2,
       });
       expect(signal?.aborted).toBe(true);
+      expect(warning).toHaveBeenCalledTimes(1);
+      expect(error).not.toHaveBeenCalled();
       expect(vi.getTimerCount()).toBe(0);
       const recoveredFetch = vi.fn(async () =>
         jsonResponse({ user_metadata: { full_name: 'Recovered' } })
