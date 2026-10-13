@@ -1039,6 +1039,50 @@ describe('api-gateway', () => {
         expect(onMerge).not.toHaveBeenCalled();
       }
     );
+    it.each(['task', 'objective'])(
+      'rejects a padded decoded URL ID over 64 characters for %s',
+      async (form) => {
+        const id = 'x'.repeat(63);
+        const onMerge = vi.fn();
+        vi.stubGlobal(
+          'fetch',
+          createBaseFetchMock({ onMerge, tasks: [{ id, objectives: [{ id }] }] })
+        );
+        const paddedId = encodeURIComponent(` ${id} `);
+        const request =
+          form === 'task'
+            ? postTaskRequest(paddedId, { state: 'completed' })
+            : postObjectiveRequest(paddedId, { count: 1 });
+        const response = await worker.fetch(request, BASE_ENV);
+        await expectErrorResponse(
+          response,
+          400,
+          `Invalid ${form === 'task' ? 'task' : 'objective'} ID in URL (maximum 64 characters)`
+        );
+        expectValidationHeaders(response);
+        expect(onMerge).not.toHaveBeenCalled();
+      }
+    );
+    it.each(['task', 'objective'])(
+      'accepts a padded decoded URL ID at exactly 64 characters for %s',
+      async (form) => {
+        const id = 'x'.repeat(62);
+        const onMerge = vi.fn();
+        vi.stubGlobal(
+          'fetch',
+          createBaseFetchMock({ onMerge, tasks: [{ id, objectives: [{ id }] }] })
+        );
+        const paddedId = encodeURIComponent(` ${id} `);
+        const request =
+          form === 'task'
+            ? postTaskRequest(paddedId, { state: 'completed' })
+            : postObjectiveRequest(paddedId, { count: 1 });
+        const response = await worker.fetch(request, BASE_ENV);
+        expect(response.status).toBe(200);
+        expectValidationHeaders(response);
+        expect(onMerge).toHaveBeenCalledOnce();
+      }
+    );
     it.each(['pvp', 'pve', 'seasonal'] as const)(
       'preserves known 64-character IDs, array/map batches and objective writes in %s',
       async (gameMode) => {

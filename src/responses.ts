@@ -278,12 +278,9 @@ export function decodeUrlParam(
 ): string | Response {
   let decoded: string;
   try {
-    decoded = decodeURIComponent(raw).trim();
+    decoded = decodeURIComponent(raw);
   } catch {
     return errorResponse(`Invalid ${label} in URL`, 400, envOrigin, requestOrigin, extraHeaders);
-  }
-  if (!decoded) {
-    return errorResponse(`Missing ${label} in URL`, 400, envOrigin, requestOrigin, extraHeaders);
   }
   if (decoded.length > MAX_PROGRESS_ID_LENGTH) {
     return errorResponse(
@@ -293,6 +290,10 @@ export function decodeUrlParam(
       requestOrigin,
       extraHeaders
     );
+  }
+  decoded = decoded.trim();
+  if (!decoded) {
+    return errorResponse(`Missing ${label} in URL`, 400, envOrigin, requestOrigin, extraHeaders);
   }
   return decoded;
 }

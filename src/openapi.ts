@@ -39,7 +39,8 @@ export const OPENAPI_SPEC = {
       'Progress writes: task/objective JSON bodies are limited to 262144 bytes before JSON decoding ' +
       '(413 when exceeded). Batch writes allow 1-1000 entries, counting duplicate array IDs. ' +
       'Task/objective IDs are nonblank, at most 64 characters, and must exist in the token mode catalog ' +
-      '(400 otherwise). Authentication and quota checks run first; validation errors retain quota headers.\n\n' +
+      '(400 otherwise). Authentication and quota checks run first; validation errors retain quota headers ' +
+      'when the daily-quota service is available.\n\n' +
       'Docs: https://api.tarkovtracker.org/docs (or / on the api subdomain).',
     contact: {
       name: 'TarkovTracker',
@@ -166,7 +167,8 @@ export const OPENAPI_SPEC = {
       },
       PayloadTooLarge: {
         description:
-          'JSON request body exceeds 262144 bytes (256 KiB). Includes CORS and daily quota headers.',
+          'JSON request body exceeds 262144 bytes (256 KiB). Includes CORS headers and daily quota ' +
+          'headers when the daily-quota service is available.',
         headers: {
           'X-RateLimit-Limit': { $ref: '#/components/headers/RateLimitLimit' },
           'X-RateLimit-Remaining': { $ref: '#/components/headers/RateLimitRemaining' },
@@ -177,7 +179,15 @@ export const OPENAPI_SPEC = {
         },
       },
       BadRequest: {
-        description: 'Bad Request',
+        description:
+          'Bad Request. Authenticated validation errors include daily quota headers when the ' +
+          'daily-quota service is available. Pre-authentication User-Agent errors and quota-service ' +
+          'fail-open responses omit these headers.',
+        headers: {
+          'X-RateLimit-Limit': { $ref: '#/components/headers/RateLimitLimit' },
+          'X-RateLimit-Remaining': { $ref: '#/components/headers/RateLimitRemaining' },
+          'X-RateLimit-Reset': { $ref: '#/components/headers/RateLimitReset' },
+        },
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/ErrorResponse' },

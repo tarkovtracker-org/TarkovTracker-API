@@ -89,12 +89,15 @@ quota service is unavailable the request is served without `X-RateLimit-*` heade
 Task, objective and batch JSON bodies are limited to 262144 bytes (256 KiB), counted from the
 request stream before JSON decoding, independently of `Content-Length`. Larger bodies return
 `413`. Authentication, permissions and daily quota checks still run first; admitted validation
-errors retain CORS and quota headers and consume one daily write.
+errors retain CORS headers, plus quota headers when the daily-quota service is available, and
+consume one daily write when quota enforcement succeeds. Quota-service fail-open responses omit
+quota headers.
 
 Batch writes accept either the legacy ID-to-state object or an array of `{id, state}` updates.
 Each batch must contain 1–1000 entries; duplicate array IDs count toward the limit and retain
 their existing ordered transition behavior. Task and objective IDs must be nonblank and at most
-64 characters. URL IDs keep their existing decoding and trimming behavior; batch IDs are exact.
+64 characters, including any whitespace padding. URL IDs are decoded, length-checked and then
+trimmed; batch IDs are exact.
 Every supplied ID must exist in the token mode's current task/objective catalog, even if a
 previously stored progress map contains it. Invalid batches are rejected in full with `400`
 before transitions or persistence. Unavailable catalogs return `503`, including objective writes.
