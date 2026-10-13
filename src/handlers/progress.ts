@@ -5,6 +5,7 @@ import { hasMaterializedProgress } from '@tarkovtracker/progress-contracts/modeP
 import { getTasks, getHideoutStations } from '../services/tarkov';
 import { getGameModeSeasonNumber } from '../utils/gameMode';
 import { logger } from '../utils/logger';
+import { ProgressInputError } from '../utils/progress-input';
 import { extractGameModeData, transformProgress } from '../utils/transform';
 import type {
   Env,
@@ -18,11 +19,30 @@ import type {
   ApiUpdateMeta,
   GameMode,
   ProgressDataField,
+  TarkovTask,
 } from '../types';
 interface ProgressMergePayload {
   taskCompletions?: Record<string, TaskCompletion>;
   taskObjectives?: Record<string, Record<string, unknown>>;
   set?: Record<string, unknown>;
+}
+async function getWritableTasks(
+  gameMode: GameMode,
+  taskIds: readonly string[]
+): Promise<TarkovTask[]> {
+  const tasks = await getTasks(gameMode);
+  const knownIds = new Set(tasks.map((task) => task.id));
+  if (!taskIds.every((id) => knownIds.has(id))) {
+    throw new ProgressInputError('Unknown task ID for token game mode');
+  }
+  return tasks;
+}
+async function validateObjectiveId(gameMode: GameMode, objectiveId: string): Promise<void> {
+  const tasks = await getTasks(gameMode);
+  const known = tasks.some((task) =>
+    task.objectives?.some((objective) => objective.id === objectiveId)
+  );
+  if (!known) throw new ProgressInputError('Unknown objective ID for token game mode');
 }
 function snapshotCompletions(taskCompletions: Record<string, TaskCompletion>): Map<string, string> {
   return new Map(Object.entries(taskCompletions).map(([id, value]) => [id, JSON.stringify(value)]));
@@ -258,6 +278,7 @@ export async function handleUpdateObjective(
   update: { state?: string; count?: number },
   gameMode: GameMode
 ): Promise<{ objectiveId: string; state?: string; count?: number; message: string }> {
+  await validateObjectiveId(gameMode, objectiveId);
   const dataField = getProgressDataField(gameMode);
   const updateTime = Date.now();
   // Build the patch from `update` only and let the RPC's per-key objective
@@ -298,13 +319,13 @@ export async function handleUpdateTask(
   state: TaskState,
   gameMode: GameMode
 ): Promise<{ taskId: string; state: string; message: string }> {
+  const tasks = await getWritableTasks(gameMode, [taskId]);
   const updateTime = Date.now();
   const dataField = getProgressDataField(gameMode);
   const currentData = await fetchCurrentProgressData(env, token.user_id, gameMode);
   const taskCompletions = (currentData.taskCompletions as Record<string, TaskCompletion>) || {};
   const beforeSnapshot = snapshotCompletions(taskCompletions);
   const updateMap = new Map<string, TaskState>();
-  const tasks = await getTasks(gameMode);
   applyTaskTransition(
     taskCompletions,
     tasks,
@@ -334,6 +355,10 @@ export async function handleUpdateTasks(
   updates: BatchTaskUpdate[],
   gameMode: GameMode
 ): Promise<{ updatedTasks: string[]; message: string }> {
+  const tasks = await getWritableTasks(
+    gameMode,
+    updates.map((update) => update.id)
+  );
   const dataField = getProgressDataField(gameMode);
   const updateTime = Date.now();
   // Fetch current data
@@ -342,7 +367,6 @@ export async function handleUpdateTasks(
   const beforeSnapshot = snapshotCompletions(taskCompletions);
   const updateMap = new Map<string, TaskState>();
   const explicitTaskIds = new Set(updates.map((update) => update.id));
-  const tasks = await getTasks(gameMode);
   for (const update of updates) {
     applyTaskTransition(
       taskCompletions,

@@ -1,4 +1,9 @@
 import { OPENAPI_JSON } from './openapi';
+import {
+  MAX_PROGRESS_BODY_BYTES,
+  MAX_PROGRESS_ID_LENGTH,
+  ProgressInputError,
+} from './utils/progress-input';
 import type { RateLimitResult } from './rateLimiter';
 import type { LegacyTokenResponse } from './types';
 function resolveOrigin(envOrigin?: string, requestOrigin?: string): string {
@@ -280,7 +285,58 @@ export function decodeUrlParam(
   if (!decoded) {
     return errorResponse(`Missing ${label} in URL`, 400, envOrigin, requestOrigin, extraHeaders);
   }
+  if (decoded.length > MAX_PROGRESS_ID_LENGTH) {
+    return errorResponse(
+      `Invalid ${label} in URL (maximum 64 characters)`,
+      400,
+      envOrigin,
+      requestOrigin,
+      extraHeaders
+    );
+  }
   return decoded;
+}
+function enforceProgressBodySize(
+  bytes: number,
+  reader: ReadableStreamDefaultReader<Uint8Array>
+): void {
+  if (bytes <= MAX_PROGRESS_BODY_BYTES) return;
+  void reader.cancel().catch(() => {});
+  throw new ProgressInputError('Request body exceeds 262144 bytes', 413);
+}
+async function readProgressBody(request: Request): Promise<string> {
+  if (!request.body) return '';
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  let bytes = 0;
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      bytes += chunk.value.byteLength;
+      enforceProgressBodySize(bytes, reader);
+      text += decoder.decode(chunk.value, { stream: true });
+    }
+    return text + decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+}
+export async function parseProgressJsonBody(
+  request: Request,
+  envOrigin?: string,
+  requestOrigin?: string,
+  extraHeaders?: Record<string, string>
+): Promise<unknown | Response> {
+  try {
+    return JSON.parse(await readProgressBody(request));
+  } catch (error) {
+    if (error instanceof ProgressInputError) {
+      return errorResponse(error.message, error.status, envOrigin, requestOrigin, extraHeaders);
+    }
+    return errorResponse('Invalid JSON body', 400, envOrigin, requestOrigin, extraHeaders);
+  }
 }
 export async function parseJsonObjectBody(
   request: Request,
@@ -288,12 +344,8 @@ export async function parseJsonObjectBody(
   requestOrigin?: string,
   extraHeaders?: Record<string, string>
 ): Promise<Record<string, unknown> | Response> {
-  let parsedBody: unknown;
-  try {
-    parsedBody = await request.json();
-  } catch {
-    return errorResponse('Invalid JSON body', 400, envOrigin, requestOrigin, extraHeaders);
-  }
+  const parsedBody = await parseProgressJsonBody(request, envOrigin, requestOrigin, extraHeaders);
+  if (parsedBody instanceof Response) return parsedBody;
   if (!parsedBody || typeof parsedBody !== 'object' || Array.isArray(parsedBody)) {
     return errorResponse(
       'Invalid request body (expected object)',

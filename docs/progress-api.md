@@ -172,6 +172,14 @@ sequenceDiagram
 - Invalid task/objective states return 400 with rate-limit headers after authentication and quota
   checks. Error messages preserve scalar values but label arrays and objects without invoking
   client-controlled string coercion, which could otherwise turn malformed input into a 500.
+- Task/objective JSON write bodies are streamed with a 256 KiB actual-byte ceiling before JSON
+  decoding. Oversized bodies return 413 with CORS and quota headers, independently of
+  `Content-Length`. Batch arrays/maps allow at most 1000 entries; array duplicates count before
+  transitions. IDs are nonblank and at most 64 characters. All requested task/objective IDs must
+  belong to the token mode's current catalog before progress reads, transitions or persistence;
+  stored unknown IDs never become an allowlist. A mixed known/unknown batch fails as a whole.
+  Objective writes now also fail with 503 when that catalog is unavailable. These HTTP guards
+  live in the Worker; shared pure transition rules and database migrations stay unchanged.
 - Personal progress reads select one exact `(user_id, game_mode, season_number)` row and account
   metadata; team reads select that same mode and season for each member. Neither reads another
   mode's progress or uses `select=*`.

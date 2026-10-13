@@ -84,6 +84,23 @@ seconds); authorized validation `400`s carry them too. A denial returns `429` wi
 (free-tier bodies include an upgrade link). Abuse-gate `429`s carry only `Retry-After`. When the
 quota service is unavailable the request is served without `X-RateLimit-*` headers (fail open).
 
+## Progress write validation
+
+Task, objective and batch JSON bodies are limited to 262144 bytes (256 KiB), counted from the
+request stream before JSON decoding, independently of `Content-Length`. Larger bodies return
+`413`. Authentication, permissions and daily quota checks still run first; admitted validation
+errors retain CORS and quota headers and consume one daily write.
+
+Batch writes accept either the legacy ID-to-state object or an array of `{id, state}` updates.
+Each batch must contain 1–1000 entries; duplicate array IDs count toward the limit and retain
+their existing ordered transition behavior. Task and objective IDs must be nonblank and at most
+64 characters. URL IDs keep their existing decoding and trimming behavior; batch IDs are exact.
+Every supplied ID must exist in the token mode's current task/objective catalog, even if a
+previously stored progress map contains it. Invalid batches are rejected in full with `400`
+before transitions or persistence. Unavailable catalogs return `503`, including objective writes.
+Clients sending more than 1000 updates must split their requests; dependency cascades retain
+their existing behavior within each request.
+
 ## Conditional requests and polling
 
 `GET /progress` and `GET /team/progress` return a weak `ETag` derived from the response payload
