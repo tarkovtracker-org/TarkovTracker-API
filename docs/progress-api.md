@@ -85,7 +85,9 @@ sequenceDiagram
 5. **Data fetch.** `src/handlers/progress.ts` selects the token mode's
    `progress_data` from `user_game_mode_progress` using the mode's season number, selects only
    account-wide `game_edition` from `user_progress`, resolves a display-name fallback from Supabase
-   Auth (24h cache), and loads matching tasks/hideout metadata from `json.tarkov.dev` via
+   Auth (24h cache). This optional lookup uses the existing three-second Supabase request
+   deadline, including body parsing; a timeout preserves the user-ID display fallback and is
+   not cached. It loads matching tasks/hideout metadata from `json.tarkov.dev` via
    `src/services/tarkov.ts` (1h memory cache).
    Concurrent misses share one fetch/normalization per resource and upstream mode within an isolate.
    The originating request retains that operation with `waitUntil`; streams are consumed there and
