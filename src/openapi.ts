@@ -451,7 +451,9 @@ export const OPENAPI_SPEC = {
           {
             success: true,
             data: {
-              tasksProgress: [{ id: 'task-1', complete: true, failed: false, invalid: false }],
+              tasksProgress: [
+                { id: 'task-1', complete: true, active: false, failed: false, invalid: false },
+              ],
               taskObjectivesProgress: [{ id: 'obj-1', complete: true, count: 2, invalid: false }],
               hideoutModulesProgress: [],
               hideoutPartsProgress: [],

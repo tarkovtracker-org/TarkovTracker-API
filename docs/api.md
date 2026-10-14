@@ -67,8 +67,8 @@ changes never reset or accept successors. Task writes do not fetch the game cata
 Progress reads expose optional `active`. Explicit acceptance is returned as true only for unfinished,
 nonfailed tasks. Terminal records return false even if stored legacy flags conflict. Unfinished
 legacy records with no `active` field omit it, preserving unknown acceptance instead of inventing it.
-Successful reads and team reads apply the same projection. Idempotent writes refresh the requested
-record timestamp without creating a new `lastApiUpdate` notification.
+The `/progress` and `/team/progress` endpoints apply the same projection. Idempotent writes
+refresh the requested record timestamp without creating a new `lastApiUpdate` notification.
 
 ## Rate limits
 
