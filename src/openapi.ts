@@ -223,7 +223,7 @@ export const OPENAPI_SPEC = {
       },
       CatalogUnavailable: {
         description:
-          'Required game data is unavailable or malformed. No progress write was made. Retry later.',
+          'Required game data is unavailable or malformed. No progress response was produced. Retry later.',
         headers: {
           'X-RateLimit-Limit': { $ref: '#/components/headers/RateLimitLimit' },
           'X-RateLimit-Remaining': { $ref: '#/components/headers/RateLimitRemaining' },
@@ -884,7 +884,6 @@ export const OPENAPI_SPEC = {
           '401': { $ref: '#/components/responses/Unauthorized' },
           '403': { $ref: '#/components/responses/Forbidden' },
           '429': { $ref: '#/components/responses/RateLimited' },
-          '503': { $ref: '#/components/responses/CatalogUnavailable' },
         },
       },
     },
@@ -984,7 +983,6 @@ export const OPENAPI_SPEC = {
           '401': { $ref: '#/components/responses/Unauthorized' },
           '403': { $ref: '#/components/responses/Forbidden' },
           '429': { $ref: '#/components/responses/RateLimited' },
-          '503': { $ref: '#/components/responses/CatalogUnavailable' },
         },
       },
     },
