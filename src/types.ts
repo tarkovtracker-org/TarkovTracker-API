@@ -24,7 +24,7 @@ export interface ApiToken {
 // Permission codes
 export type Permission = 'GP' | 'TP' | 'WP';
 // Task status for updates
-export type TaskState = 'completed' | 'uncompleted' | 'failed';
+export type TaskState = 'active' | 'completed' | 'uncompleted' | 'failed';
 export interface ApiTaskUpdate {
   id: string;
   state: TaskState;
@@ -59,6 +59,7 @@ export interface UserProgressData {
 export interface TaskCompletion {
   complete?: boolean;
   failed?: boolean;
+  active?: boolean;
   timestamp?: number;
 }
 export interface TaskObjective {
@@ -97,6 +98,7 @@ export interface LegacyTokenResponse {
 export interface ProgressResponseTask {
   id: string;
   complete: boolean;
+  active?: boolean;
   invalid?: boolean;
   failed?: boolean;
 }

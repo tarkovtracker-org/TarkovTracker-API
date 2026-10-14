@@ -346,6 +346,11 @@ export const OPENAPI_SPEC = {
         properties: {
           id: { type: 'string' },
           complete: { type: 'boolean' },
+          active: {
+            type: 'boolean',
+            description:
+              'Explicit acceptance state. Omitted on legacy records where acceptance is unknown.',
+          },
           failed: { type: 'boolean' },
           invalid: { type: 'boolean' },
         },
@@ -487,7 +492,7 @@ export const OPENAPI_SPEC = {
       },
       TaskState: {
         type: 'string',
-        enum: ['completed', 'uncompleted', 'failed'],
+        enum: ['active', 'completed', 'uncompleted', 'failed'],
       },
       TaskUpdateRequest: {
         type: 'object',
@@ -859,6 +864,7 @@ export const OPENAPI_SPEC = {
               schema: { $ref: '#/components/schemas/TaskUpdateRequest' },
               examples: {
                 complete: { value: { state: 'completed' } },
+                active: { value: { state: 'active' } },
                 failed: { value: { state: 'failed' } },
                 uncompleted: { value: { state: 'uncompleted' } },
               },
