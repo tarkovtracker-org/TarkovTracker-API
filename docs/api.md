@@ -57,6 +57,19 @@ Edge Function; this Worker only validates them. Facts clients rely on:
 - At most 3 active tokens per account (database trigger); creation is limited to 3 per hour.
   Renaming changes only the token's `note`.
 
+## Task acceptance and writes
+
+Single and batch task updates accept `active`, `completed`, `failed` and `uncompleted`.
+`active` means explicitly accepted, with `complete: false` and `failed: false`. Completed and failed
+writes clear acceptance, as does `uncompleted`. Only requested task IDs are persisted; dependency
+changes never reset or accept successors. Task writes do not fetch the game catalog.
+
+Progress reads expose optional `active`. Explicit acceptance is returned as true only for unfinished,
+nonfailed tasks. Terminal records return false even if stored legacy flags conflict. Unfinished
+legacy records with no `active` field omit it, preserving unknown acceptance instead of inventing it.
+The `/progress` and `/team/progress` endpoints apply the same projection. Idempotent writes
+refresh the requested record timestamp without creating a new `lastApiUpdate` notification.
+
 ## Rate limits
 
 Daily quotas are per account (not per token), reset at 00:00 UTC, and count authenticated

@@ -102,10 +102,9 @@ sequenceDiagram
    failures remain uncached and retryable, with the existing 30-second fetch timeout.
    Missing, empty, or structurally malformed required catalogs return 503 with the ordinary error
    envelope and any available quota headers. Progress and team reads do not return partial derived
-   state or ETags on this path. Single and batch task writes await validated task rules before
-   applying transitions or calling the progress merge RPC; level and objective patches do not
-   evaluate task rules and retain their existing behavior. Expired catalogs are not used as a
-   last-good fallback.
+   state or ETags on this path. Single and batch task writes persist explicit states only and
+   do not load catalogs or evaluate dependency rules. Level and objective patches likewise
+   do not evaluate task rules. Expired catalogs are not used as a last-good fallback.
 6. **Transform.** `src/utils/transform.ts` converts the JSONB objects into the
    public array format, applies invalidation (`@tarkovtracker/progress-contracts/progressInvalidation`, the same
    algorithm the app uses) and game-edition hideout auto-completes.
@@ -144,8 +143,8 @@ sequenceDiagram
   app progress store, public profile/streamer views, and the Worker transform
 - `@tarkovtracker/progress-contracts/requirementStatus` — runtime-independent task-requirement status predicates,
   shared by invalidation, app task actions, failed-state repair, and the Worker
-- `@tarkovtracker/progress-contracts/taskTransitions` — runtime-independent explicit task-state transitions (dependent
-  lock/unlock) used by Worker task writes
+- `@tarkovtracker/progress-contracts/taskTransitions` — runtime-independent requested task-state writes
+  used by Worker task writes
 - `@tarkovtracker/progress-contracts/userMetadata` — runtime-independent provider metadata parsing, shared with app
   user hydration through `@tarkovtracker/progress-contracts/userMetadata` in Nuxt and the Worker
 - `src/utils/user-display-name.ts` — cached Auth metadata lookup shared by
@@ -154,6 +153,11 @@ sequenceDiagram
 
 ### Invariants
 
+- Single and batch task writes update only requested IDs through the atomic merge RPC; dependent
+  completion, failure and acceptance records are preserved. Eligibility is derived from requirements,
+  never persisted as implicit successor writes. Task updates do not depend on catalog availability.
+- `active` explicitly records acceptance. Terminal and `uncompleted` writes clear it. Reads omit it
+  when an unfinished legacy record has no acceptance evidence; terminal records always return false.
 - App user hydration, personal API progress, and team API progress share provider metadata fallback
   ordering. Both API consumers use the same per-user display-name cache, so either endpoint must
   resolve the same metadata before populating it. The app and API share one invalidation algorithm:
