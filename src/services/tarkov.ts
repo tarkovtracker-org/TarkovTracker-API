@@ -4,11 +4,11 @@ import {
 } from '@tarkovtracker/progress-contracts/taskFailureEdges';
 import { waitUntil } from 'cloudflare:workers';
 import { CatalogUnavailableError } from './catalog-error';
+import { loadCatalogSnapshot } from './catalog-cache';
 import { getMemoryCache, setMemoryCache } from '../utils/memory-cache';
 import { prepareTaskCatalog } from '../utils/task-catalog';
 import { TARKOVTRACKER_USER_AGENT } from '../utils/userAgent';
 import type { GameMode, TarkovHideoutStation, TarkovTask } from '../types';
-const CACHE_TTL = 3600; // 1 hour
 const FETCH_TIMEOUT_MS = 30_000;
 const JSON_BASE_URL = 'https://json.tarkov.dev';
 const inFlightTasks = new Map<string, Promise<TarkovTask[]>>();
@@ -133,12 +133,51 @@ function isHideoutEntry(station: Record<string, unknown>): boolean {
     station.levels.every(isHideoutLevel)
   );
 }
+function isNormalizedRequirement(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isRecord(value.task) &&
+    Boolean(asString(value.task.id)) &&
+    Array.isArray(value.status) &&
+    value.status.every((status) => typeof status === 'string')
+  );
+}
+function isNormalizedTask(task: Record<string, unknown>): boolean {
+  return (
+    isTaskRuleEntry(task) &&
+    typeof task.name === 'string' &&
+    (task.factionName === undefined || typeof task.factionName === 'string') &&
+    (task.taskRequirements as unknown[]).every(isNormalizedRequirement) &&
+    (task.failConditions as unknown[]).every(isNormalizedRequirement) &&
+    (task.alternatives === undefined ||
+      (Array.isArray(task.alternatives) && task.alternatives.every((id) => typeof id === 'string')))
+  );
+}
+function isNormalizedHideout(station: Record<string, unknown>): boolean {
+  return (
+    isHideoutEntry(station) &&
+    (station.levels as Record<string, unknown>[]).every((level) =>
+      (level.itemRequirements as Record<string, unknown>[]).every((item) =>
+        Boolean(asString(item.id)) && !('item' in item)
+      )
+    )
+  );
+}
 export function getTasks(gameMode: GameMode): Promise<TarkovTask[]> {
   const apiGameMode = getApiGameMode(gameMode);
   const cacheKey = `tarkov:tasks:${apiGameMode}`;
-  return loadCatalog(cacheKey, inFlightTasks, () => fetchTasks(apiGameMode, cacheKey));
+  return loadCatalog(cacheKey, inFlightTasks, async () => {
+    const snapshot = await loadCatalogSnapshot(
+      `tasks/${apiGameMode}`,
+      () => fetchTasks(apiGameMode),
+      isNormalizedTask
+    );
+    prepareTaskCatalog(snapshot.value);
+    setMemoryCache(cacheKey, snapshot.value, (snapshot.expiresAt - Date.now()) / 1000);
+    return snapshot.value;
+  });
 }
-async function fetchTasks(apiGameMode: string, cacheKey: string): Promise<TarkovTask[]> {
+async function fetchTasks(apiGameMode: string): Promise<TarkovTask[]> {
   const data = await fetchJson<JsonTasksPayload>(`${apiGameMode}/tasks`);
   requireCatalog(data.tasks, isTaskRuleEntry);
   const tasks: TarkovTask[] = Object.values(data.tasks)
@@ -186,19 +225,22 @@ async function fetchTasks(apiGameMode: string, cacheKey: string): Promise<Tarkov
     });
   const alternatives = buildTaskFailureAlternatives(tasks);
   for (const task of tasks) task.alternatives = alternatives[task.id];
-  prepareTaskCatalog(tasks);
-  setMemoryCache(cacheKey, tasks, CACHE_TTL);
   return tasks;
 }
 export function getHideoutStations(gameMode: GameMode): Promise<TarkovHideoutStation[]> {
   const apiGameMode = getApiGameMode(gameMode);
   const cacheKey = `tarkov:hideout:${apiGameMode}`;
-  return loadCatalog(cacheKey, inFlightHideout, () => fetchHideoutStations(apiGameMode, cacheKey));
+  return loadCatalog(cacheKey, inFlightHideout, async () => {
+    const snapshot = await loadCatalogSnapshot(
+      `hideout/${apiGameMode}`,
+      () => fetchHideoutStations(apiGameMode),
+      isNormalizedHideout
+    );
+    setMemoryCache(cacheKey, snapshot.value, (snapshot.expiresAt - Date.now()) / 1000);
+    return snapshot.value;
+  });
 }
-async function fetchHideoutStations(
-  apiGameMode: string,
-  cacheKey: string
-): Promise<TarkovHideoutStation[]> {
+async function fetchHideoutStations(apiGameMode: string): Promise<TarkovHideoutStation[]> {
   const data = await fetchJson<JsonHideoutPayload>(`${apiGameMode}/hideout`);
   requireCatalog(data, isHideoutEntry);
   const stations: TarkovHideoutStation[] = Object.values(data)
@@ -232,6 +274,5 @@ async function fetchHideoutStations(
         },
       ];
     });
-  setMemoryCache(cacheKey, stations, CACHE_TTL);
   return stations;
 }
