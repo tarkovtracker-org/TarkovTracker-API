@@ -88,7 +88,14 @@ sequenceDiagram
    Auth (24h cache). This optional lookup uses the existing three-second Supabase request
    deadline, including body parsing; a timeout preserves the user-ID display fallback and is
    not cached. It loads matching tasks/hideout metadata from `json.tarkov.dev` via
-   `src/services/tarkov.ts` (1h memory cache).
+   `src/services/tarkov.ts` (1h memory cache). New isolates first try a versioned, per-colo
+   Cache API snapshot of the normalized public tasks/hideout data. A snapshot retains its
+   original absolute expiry; restoring it never extends the one-hour freshness window.
+   Missing, malformed, expired or unavailable cache entries fall back to the required upstream
+   fetch. Only successfully normalized public metadata is stored; tokens, player progress,
+   permissions, quotas and response bodies never enter this cache. Task snapshots rebuild
+   their immutable prepared graph when restored. Bump the cache version in
+   `src/services/catalog-cache.ts` when changing the normalized format or its interpretation.
    Concurrent misses share one fetch/normalization per resource and upstream mode within an isolate.
    The originating request retains that operation with `waitUntil`; streams are consumed there and
    only parsed public catalog data is shared. Every settled operation leaves the in-flight map;
