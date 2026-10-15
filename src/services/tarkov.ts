@@ -158,7 +158,7 @@ function isNormalizedHideout(station: Record<string, unknown>): boolean {
     isHideoutEntry(station) &&
     (station.levels as Record<string, unknown>[]).every((level) =>
       (level.itemRequirements as Record<string, unknown>[]).every((item) =>
-        Boolean(asString(item.id))
+        Boolean(asString(item.id)) && !('item' in item)
       )
     )
   );

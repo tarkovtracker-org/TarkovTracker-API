@@ -126,6 +126,24 @@ describe('public catalog snapshots', () => {
     expect((await getTasks('pvp'))[0].taskRequirements![0].task).toEqual({ id: 'root' });
     expect(upstream).toHaveBeenCalledOnce();
   });
+  it('rejects hideout snapshots carrying raw requirement-row IDs', async () => {
+    const raw = {
+      id: 'stash',
+      levels: [
+        {
+          id: 'level',
+          level: 1,
+          itemRequirements: [{ id: 'requirement-row', item: 'item-template', count: 2 }],
+        },
+      ],
+    };
+    match.mockResolvedValue(Response.json({ value: [raw], expiresAt: Date.now() + 1000 }));
+    const upstream = vi.fn(async () => Response.json({ data: { stash: raw } }));
+    vi.stubGlobal('fetch', upstream);
+    const stations = await getHideoutStations('pvp');
+    expect(stations[0].levels![0].itemRequirements).toEqual([{ id: 'item-template', count: 2 }]);
+    expect(upstream).toHaveBeenCalledOnce();
+  });
   it.each(['pvp', 'pve', 'seasonal'] as const)(
     'restores immutable normalized %s rules and refreshes on the original deadline',
     async (mode) => {
