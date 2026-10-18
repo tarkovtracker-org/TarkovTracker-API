@@ -36,6 +36,11 @@ export const OPENAPI_SPEC = {
       'is required on protected API endpoints (token, progress, team). Infrastructure routes ' +
       '(/health, /openapi.json, /docs, /robots.txt) are exempt. Requests outside that range ' +
       'are rejected with 400. Use a descriptive string like "AppName/1.0 (+https://your-app.com)".\n\n' +
+      'Progress writes: task/objective JSON bodies are limited to 262144 bytes before JSON decoding ' +
+      '(413 when exceeded). Batch writes allow 1-1000 entries, counting duplicate array IDs. ' +
+      'Task/objective IDs are nonblank, at most 64 characters, and must exist in the token mode catalog ' +
+      '(400 otherwise). Authentication and quota checks run first; validation errors retain quota headers ' +
+      'when the daily-quota service is available.\n\n' +
       'Docs: https://api.tarkovtracker.org/docs (or / on the api subdomain).',
     contact: {
       name: 'TarkovTracker',
@@ -160,8 +165,29 @@ export const OPENAPI_SPEC = {
           },
         },
       },
+      PayloadTooLarge: {
+        description:
+          'JSON request body exceeds 262144 bytes (256 KiB). Includes CORS headers and daily quota ' +
+          'headers when the daily-quota service is available.',
+        headers: {
+          'X-RateLimit-Limit': { $ref: '#/components/headers/RateLimitLimit' },
+          'X-RateLimit-Remaining': { $ref: '#/components/headers/RateLimitRemaining' },
+          'X-RateLimit-Reset': { $ref: '#/components/headers/RateLimitReset' },
+        },
+        content: {
+          'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } },
+        },
+      },
       BadRequest: {
-        description: 'Bad Request',
+        description:
+          'Bad Request. Authenticated validation errors include daily quota headers when the ' +
+          'daily-quota service is available. Pre-authentication User-Agent errors and quota-service ' +
+          'fail-open responses omit these headers.',
+        headers: {
+          'X-RateLimit-Limit': { $ref: '#/components/headers/RateLimitLimit' },
+          'X-RateLimit-Remaining': { $ref: '#/components/headers/RateLimitRemaining' },
+          'X-RateLimit-Reset': { $ref: '#/components/headers/RateLimitReset' },
+        },
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/ErrorResponse' },
@@ -500,18 +526,23 @@ export const OPENAPI_SPEC = {
       BatchTaskUpdateItem: {
         type: 'object',
         properties: {
-          id: { type: 'string' },
+          id: { type: 'string', minLength: 1, maxLength: 64, pattern: '\\S' },
           state: { $ref: '#/components/schemas/TaskState' },
         },
         required: ['id', 'state'],
       },
       LegacyTaskUpdateMap: {
         type: 'object',
+        minProperties: 1,
+        maxProperties: 1000,
+        propertyNames: { minLength: 1, maxLength: 64, pattern: '\\S' },
         additionalProperties: { $ref: '#/components/schemas/TaskState' },
         examples: [{ 'task-1': 'completed', 'task-2': 'failed' }],
       },
       TaskUpdateArray: {
         type: 'array',
+        minItems: 1,
+        maxItems: 1000,
         items: { $ref: '#/components/schemas/BatchTaskUpdateItem' },
         examples: [
           [
@@ -848,7 +879,7 @@ export const OPENAPI_SPEC = {
             name: 'taskId',
             in: 'path',
             required: true,
-            schema: { type: 'string' },
+            schema: { type: 'string', minLength: 1, maxLength: 64, pattern: '\\S' },
             example: 'task-1',
           },
         ],
@@ -877,6 +908,7 @@ export const OPENAPI_SPEC = {
           '400': { $ref: '#/components/responses/BadRequest' },
           '401': { $ref: '#/components/responses/Unauthorized' },
           '403': { $ref: '#/components/responses/Forbidden' },
+          '413': { $ref: '#/components/responses/PayloadTooLarge' },
           '429': { $ref: '#/components/responses/RateLimited' },
           '503': { $ref: '#/components/responses/CatalogUnavailable' },
         },
@@ -896,7 +928,7 @@ export const OPENAPI_SPEC = {
             name: 'objectiveId',
             in: 'path',
             required: true,
-            schema: { type: 'string' },
+            schema: { type: 'string', minLength: 1, maxLength: 64, pattern: '\\S' },
             example: 'obj-1',
           },
         ],
@@ -925,7 +957,9 @@ export const OPENAPI_SPEC = {
           '400': { $ref: '#/components/responses/BadRequest' },
           '401': { $ref: '#/components/responses/Unauthorized' },
           '403': { $ref: '#/components/responses/Forbidden' },
+          '413': { $ref: '#/components/responses/PayloadTooLarge' },
           '429': { $ref: '#/components/responses/RateLimited' },
+          '503': { $ref: '#/components/responses/CatalogUnavailable' },
         },
       },
     },
@@ -977,6 +1011,7 @@ export const OPENAPI_SPEC = {
           '400': { $ref: '#/components/responses/BadRequest' },
           '401': { $ref: '#/components/responses/Unauthorized' },
           '403': { $ref: '#/components/responses/Forbidden' },
+          '413': { $ref: '#/components/responses/PayloadTooLarge' },
           '429': { $ref: '#/components/responses/RateLimited' },
           '503': { $ref: '#/components/responses/CatalogUnavailable' },
         },

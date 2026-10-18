@@ -99,7 +99,7 @@ const createBaseFetchMock = ({
   onMerge,
   mergeResult,
   mergeStore,
-  tasks = [{ id: 'unrelated' }],
+  tasks = [{ id: 'unrelated', objectives: [{ id: 'obj-1' }] }],
   userProgress = {
     user_id: 'user-1',
     game_edition: 1,
@@ -835,6 +835,381 @@ describe('api-gateway', () => {
       BASE_ENV
     );
     await expectErrorResponse(res, 400, 'Invalid request body');
+  });
+  describe('progress write bounds', () => {
+    const limit = 256 * 1024;
+    const expectValidationHeaders = (response: Response) => {
+      expect(response.headers.get('X-RateLimit-Limit')).toBe('100');
+      expect(response.headers.get('X-RateLimit-Remaining')).toBe('10');
+      expect(response.headers.get('X-RateLimit-Reset')).toMatch(/^\d+$/);
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    };
+    const batchRequest = (body: unknown) =>
+      buildRequest('/progress/tasks', {
+        method: 'POST',
+        headers: AUTH_HEADERS,
+        body: JSON.stringify(body),
+      });
+    const streamRequest = (
+      path: string,
+      chunks: Uint8Array[],
+      headers: Record<string, string> = {}
+    ) => {
+      const cancel = vi.fn();
+      let index = 0;
+      const stream = new ReadableStream<Uint8Array>(
+        {
+          pull(controller) {
+            if (index < chunks.length) controller.enqueue(chunks[index++]);
+            else controller.close();
+          },
+          cancel,
+        },
+        { highWaterMark: 0 }
+      );
+      const init: RequestInit & { duplex: 'half' } = {
+        method: 'POST',
+        headers: { ...AUTH_HEADERS, ...headers },
+        body: stream,
+        duplex: 'half',
+      };
+      return { request: buildRequest(path, init), cancel, readChunks: () => index };
+    };
+    it.each([
+      '/progress/tasks',
+      '/progress/task/known',
+      '/progress/task/objective/known-objective',
+    ])(
+      'rejects actual streamed bytes over the limit on %s before parsing or upstream work',
+      async (path) => {
+        const onMerge = vi.fn();
+        const fetchMock = createBaseFetchMock({ onMerge });
+        vi.stubGlobal('fetch', fetchMock);
+        const { request, cancel, readChunks } = streamRequest(
+          path,
+          [new Uint8Array(limit).fill(32), new Uint8Array([32]), new Uint8Array([32])],
+          { 'Content-Length': '1' }
+        );
+        const json = vi.spyOn(request, 'json');
+        const response = await worker.fetch(request, BASE_ENV);
+        await expectErrorResponse(response, 413, 'Request body exceeds 262144 bytes');
+        expectValidationHeaders(response);
+        expect(json).not.toHaveBeenCalled();
+        expect(cancel).toHaveBeenCalledOnce();
+        expect(readChunks()).toBe(2);
+        expect(onMerge).not.toHaveBeenCalled();
+        expect(fetchMock.mock.calls.some(([url]) => String(url).includes('json.tarkov.dev'))).toBe(
+          false
+        );
+      }
+    );
+    it.each([undefined, '1', 'invalid'])(
+      'counts UTF-8 bytes without trusting Content-Length %s',
+      async (contentLength) => {
+        vi.stubGlobal('fetch', createBaseFetchMock());
+        const body = JSON.stringify([
+          { id: 'known', state: 'completed', padding: 'é'.repeat(limit / 2) },
+        ]);
+        expect(body.length).toBeLessThan(limit);
+        const chunks = [new TextEncoder().encode(body)];
+        const { request } = streamRequest(
+          '/progress/tasks',
+          chunks,
+          contentLength === undefined ? {} : { 'Content-Length': contentLength }
+        );
+        const response = await worker.fetch(request, BASE_ENV);
+        expect(response.status).toBe(413);
+        expectValidationHeaders(response);
+      }
+    );
+    it('accepts exactly the byte boundary and split UTF-8 characters', async () => {
+      const onMerge = vi.fn();
+      vi.stubGlobal('fetch', createBaseFetchMock({ onMerge, tasks: [{ id: 'known' }] }));
+      const base = JSON.stringify([{ id: 'known', state: 'completed', padding: 'é' }]);
+      const encoded = new TextEncoder().encode(base);
+      const body = new TextEncoder().encode(base + ' '.repeat(limit - encoded.byteLength));
+      const split = encoded.indexOf(0xc3) + 1;
+      const { request } = streamRequest('/progress/tasks', [
+        body.slice(0, split),
+        body.slice(split),
+      ]);
+      const response = await worker.fetch(request, BASE_ENV);
+      expect(response.status).toBe(200);
+      expect(onMerge).toHaveBeenCalledOnce();
+    });
+    it.each(['array', 'map'])(
+      'rejects 1001 %s entries before catalog reads or persistence',
+      async (form) => {
+        const onMerge = vi.fn();
+        const body =
+          form === 'array'
+            ? Array.from({ length: 1001 }, () => ({ id: 'known', state: 'completed' }))
+            : Object.fromEntries(
+                Array.from({ length: 1001 }, (_, index) => [`task-${index}`, 'completed'])
+              );
+        const tasks =
+          form === 'array' ? [{ id: 'known' }] : Object.keys(body).map((id) => ({ id }));
+        const fetchMock = createBaseFetchMock({ onMerge, tasks });
+        vi.stubGlobal('fetch', fetchMock);
+        const response = await worker.fetch(batchRequest(body), BASE_ENV);
+        await expectErrorResponse(response, 400, 'Batch exceeds 1000 task updates');
+        expectValidationHeaders(response);
+        expect(onMerge).not.toHaveBeenCalled();
+        expect(fetchMock.mock.calls.some(([url]) => String(url).includes('json.tarkov.dev'))).toBe(
+          false
+        );
+      }
+    );
+    it('enumerates only own task-map properties', async () => {
+      const onMerge = vi.fn();
+      vi.stubGlobal('fetch', createBaseFetchMock({ onMerge, tasks: [{ id: 'known' }] }));
+      Object.defineProperty(Object.prototype, 'inherited-task', {
+        value: 'completed',
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+      try {
+        const response = await worker.fetch(batchRequest({ known: 'completed' }), BASE_ENV);
+        expect(response.status).toBe(200);
+        expect(onMerge).toHaveBeenCalledOnce();
+        expect(Object.keys(onMerge.mock.calls[0][0].p_task_completions)).toEqual(['known']);
+      } finally {
+        Reflect.deleteProperty(Object.prototype, 'inherited-task');
+      }
+    });
+    it('publishes non-whitespace OpenAPI ID patterns', async () => {
+      const response = await worker.fetch(buildRequest('/openapi.json'), BASE_ENV);
+      const spec = (await response.json()) as {
+        components: {
+          schemas: {
+            BatchTaskUpdateItem: { properties: { id: { pattern: string } } };
+            LegacyTaskUpdateMap: { propertyNames: { pattern: string } };
+          };
+        };
+      };
+      for (const pattern of [
+        spec.components.schemas.BatchTaskUpdateItem.properties.id.pattern,
+        spec.components.schemas.LegacyTaskUpdateMap.propertyNames.pattern,
+      ]) {
+        expect(new RegExp(pattern).test('task-1')).toBe(true);
+        expect(new RegExp(pattern).test('   ')).toBe(false);
+      }
+    });
+    it.each(['array', 'map'])(
+      'accepts exactly 1000 %s entries, counting duplicate array IDs',
+      async (form) => {
+        const ids = Array.from({ length: 1000 }, (_, index) =>
+          form === 'array' ? 'known' : `task-${index}`
+        );
+        const onMerge = vi.fn();
+        vi.stubGlobal(
+          'fetch',
+          createBaseFetchMock({ onMerge, tasks: [...new Set(ids)].map((id) => ({ id })) })
+        );
+        const body =
+          form === 'array'
+            ? ids.map((id) => ({ id, state: 'completed' }))
+            : Object.fromEntries(ids.map((id) => [id, 'completed']));
+        const response = await worker.fetch(batchRequest(body), BASE_ENV);
+        expect(response.status).toBe(200);
+        expect(onMerge).toHaveBeenCalledOnce();
+      }
+    );
+    it.each(['array', 'map', 'task', 'objective'])(
+      'rejects a 65-character known ID in the %s form',
+      async (form) => {
+        const id = 'x'.repeat(65);
+        const onMerge = vi.fn();
+        vi.stubGlobal(
+          'fetch',
+          createBaseFetchMock({ onMerge, tasks: [{ id, objectives: [{ id }] }] })
+        );
+        const request =
+          form === 'array'
+            ? batchRequest([{ id, state: 'completed' }])
+            : form === 'map'
+              ? batchRequest({ [id]: 'completed' })
+              : form === 'task'
+                ? postTaskRequest(id, { state: 'completed' })
+                : postObjectiveRequest(id, { count: 1 });
+        const response = await worker.fetch(request, BASE_ENV);
+        expect(response.status).toBe(400);
+        expectValidationHeaders(response);
+        expect(onMerge).not.toHaveBeenCalled();
+      }
+    );
+    it.each(['task', 'objective'])(
+      'rejects a padded decoded URL ID over 64 characters for %s',
+      async (form) => {
+        const id = 'x'.repeat(63);
+        const onMerge = vi.fn();
+        vi.stubGlobal(
+          'fetch',
+          createBaseFetchMock({ onMerge, tasks: [{ id, objectives: [{ id }] }] })
+        );
+        const paddedId = encodeURIComponent(` ${id} `);
+        const request =
+          form === 'task'
+            ? postTaskRequest(paddedId, { state: 'completed' })
+            : postObjectiveRequest(paddedId, { count: 1 });
+        const response = await worker.fetch(request, BASE_ENV);
+        await expectErrorResponse(
+          response,
+          400,
+          `Invalid ${form === 'task' ? 'task' : 'objective'} ID in URL (maximum 64 characters)`
+        );
+        expectValidationHeaders(response);
+        expect(onMerge).not.toHaveBeenCalled();
+      }
+    );
+    it.each(['task', 'objective'])(
+      'accepts a padded decoded URL ID at exactly 64 characters for %s',
+      async (form) => {
+        const id = 'x'.repeat(62);
+        const onMerge = vi.fn();
+        vi.stubGlobal(
+          'fetch',
+          createBaseFetchMock({ onMerge, tasks: [{ id, objectives: [{ id }] }] })
+        );
+        const paddedId = encodeURIComponent(` ${id} `);
+        const request =
+          form === 'task'
+            ? postTaskRequest(paddedId, { state: 'completed' })
+            : postObjectiveRequest(paddedId, { count: 1 });
+        const response = await worker.fetch(request, BASE_ENV);
+        expect(response.status).toBe(200);
+        expectValidationHeaders(response);
+        expect(onMerge).toHaveBeenCalledOnce();
+      }
+    );
+    it.each(['pvp', 'pve', 'seasonal'] as const)(
+      'preserves known 64-character IDs, array/map batches and objective writes in %s',
+      async (gameMode) => {
+        const id = 'x'.repeat(64);
+        const onMerge = vi.fn();
+        vi.stubGlobal(
+          'fetch',
+          createBaseFetchMock({ onMerge, gameMode, tasks: [{ id, objectives: [{ id }] }] })
+        );
+        const prefix = gameMode === 'pvp' ? 'PVP' : gameMode === 'pve' ? 'PVE' : 'SZN';
+        const requests = [
+          batchRequest([{ id, state: 'failed' }]),
+          batchRequest({ [id]: 'uncompleted' }),
+          postTaskRequest(id, { state: 'completed' }),
+          postObjectiveRequest(id, { state: 'uncompleted', count: 2 }),
+        ];
+        for (const request of requests) {
+          request.headers.set('Authorization', `Bearer ${prefix}_abc123`);
+          const response = await worker.fetch(request, BASE_ENV);
+          expect(response.status).toBe(200);
+          await response.arrayBuffer();
+        }
+        expect(onMerge).toHaveBeenCalledTimes(4);
+        for (const [payload] of onMerge.mock.calls)
+          expect(payload.p_field).toBe(`${gameMode}_data`);
+      }
+    );
+    it.each(['array', 'map', 'task', 'objective'])(
+      'rejects unknown IDs in the %s form without partial persistence, even when already stored',
+      async (form) => {
+        const onMerge = vi.fn();
+        vi.stubGlobal(
+          'fetch',
+          createBaseFetchMock({
+            onMerge,
+            tasks: [{ id: 'known', objectives: [{ id: 'known-objective' }] }],
+            userProgress: {
+              user_id: 'user-1',
+              pvp_data: {
+                taskCompletions: { invented: { complete: true } },
+                taskObjectives: { invented: { count: 1 } },
+              },
+            },
+          })
+        );
+        const request =
+          form === 'array'
+            ? batchRequest([
+                { id: 'known', state: 'completed' },
+                { id: 'invented', state: 'completed' },
+              ])
+            : form === 'map'
+              ? batchRequest({ known: 'completed', invented: 'completed' })
+              : form === 'task'
+                ? postTaskRequest('invented', { state: 'completed' })
+                : postObjectiveRequest('invented', { count: 1 });
+        const response = await worker.fetch(request, BASE_ENV);
+        await expectErrorResponse(
+          response,
+          400,
+          form === 'objective'
+            ? 'Unknown objective ID for token game mode'
+            : 'Unknown task ID for token game mode'
+        );
+        expectValidationHeaders(response);
+        expect(onMerge).not.toHaveBeenCalled();
+      }
+    );
+    it.each(['pvp', 'pve', 'seasonal'] as const)(
+      'rejects IDs outside the %s catalog through route aliases',
+      async (gameMode) => {
+        const onMerge = vi.fn();
+        vi.stubGlobal(
+          'fetch',
+          createBaseFetchMock({ onMerge, gameMode, tasks: [{ id: `${gameMode}-known` }] })
+        );
+        const prefix = gameMode === 'pvp' ? 'PVP' : gameMode === 'pve' ? 'PVE' : 'SZN';
+        for (const id of ['foreign-mode-id', '__proto__', 'constructor']) {
+          const request = buildRequest('/api/v2/progress/tasks', {
+            method: 'POST',
+            headers: { ...AUTH_HEADERS, Authorization: `Bearer ${prefix}_abc123` },
+            body: JSON.stringify({ [id]: 'completed' }),
+          });
+          const response = await worker.fetch(request, BASE_ENV);
+          expect(response.status).toBe(400);
+          expectValidationHeaders(response);
+        }
+        expect(onMerge).not.toHaveBeenCalled();
+      }
+    );
+    it('rejects objective writes with 503 when the catalog is unavailable', async () => {
+      const onMerge = vi.fn();
+      const baseFetch = createBaseFetchMock({ onMerge });
+      vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) =>
+        String(input).includes('json.tarkov.dev')
+          ? Promise.resolve(new Response('Unavailable', { status: 503 }))
+          : baseFetch(input, init)
+      );
+      const response = await worker.fetch(postObjectiveRequest('obj-1', { count: 1 }), BASE_ENV);
+      expect(response.status).toBe(503);
+      expectValidationHeaders(response);
+      expect(onMerge).not.toHaveBeenCalled();
+    });
+    it.each(['unauthenticated', 'forbidden', 'over quota'])(
+      'does not read or decode the body when %s',
+      async (condition) => {
+        vi.stubGlobal(
+          'fetch',
+          createBaseFetchMock({ permissions: condition === 'forbidden' ? ['GP'] : ['WP'] })
+        );
+        const { request, readChunks } = streamRequest('/progress/tasks', [
+          new Uint8Array(limit + 1),
+        ]);
+        if (condition === 'unauthenticated')
+          request.headers.set('Authorization', 'Bearer tt_invalid');
+        const env =
+          condition === 'over quota'
+            ? { ...BASE_ENV, API_GATEWAY_LIMITER: makeLimiter({ allowed: false, remaining: 0 }) }
+            : BASE_ENV;
+        const response = await worker.fetch(request, env);
+        expect(response.status).toBe(
+          condition === 'unauthenticated' ? 401 : condition === 'forbidden' ? 403 : 429
+        );
+        expect(readChunks()).toBe(0);
+        await request.body?.cancel();
+      }
+    );
   });
   it('returns an error when the merge RPC matches no progress row', async () => {
     vi.stubGlobal(

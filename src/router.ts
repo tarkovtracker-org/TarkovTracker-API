@@ -18,10 +18,12 @@ import {
   errorResponse,
   openApiResponse,
   parseJsonObjectBody,
+  parseProgressJsonBody,
   successResponse,
   tokenFlatResponse,
 } from './responses';
 import { INBOUND_USER_AGENT_MIN_LENGTH, normalizeInboundUserAgent } from './utils/userAgent';
+import { isProgressId, MAX_TASK_UPDATES, ProgressInputError } from './utils/progress-input';
 import type { BatchTaskUpdate, Env, Permission, TaskState } from './types';
 const TASK_STATES = new Set<TaskState>(['completed', 'uncompleted', 'failed']);
 const API_HOST_PREFIXES = ['/api/v2', '/api', '/v2'] as const;
@@ -132,22 +134,35 @@ async function authorize(
 function isTaskState(value: unknown): value is TaskState {
   return typeof value === 'string' && TASK_STATES.has(value as TaskState);
 }
-function hasValidTaskId(id: string): boolean {
-  return id.trim().length > 0;
-}
 function isBatchTaskUpdate(value: unknown): value is BatchTaskUpdate {
   if (!value || typeof value !== 'object') return false;
   const { id, state } = value as Record<string, unknown>;
-  return typeof id === 'string' && hasValidTaskId(id) && isTaskState(state);
+  return typeof id === 'string' && isProgressId(id) && isTaskState(state);
+}
+function isTaskMapEntry(id: string, state: unknown): state is TaskState {
+  return isProgressId(id) && isTaskState(state);
 }
 function normalizeBatchArray(body: unknown[]): BatchTaskUpdate[] | null {
   if (body.length === 0) return null;
+  if (body.length > MAX_TASK_UPDATES)
+    throw new ProgressInputError('Batch exceeds 1000 task updates');
   return body.every(isBatchTaskUpdate) ? body : null;
+}
+function boundedTaskUpdateIds(body: Record<string, unknown>): string[] {
+  const ids: string[] = [];
+  for (const id in body) {
+    if (!Object.hasOwn(body, id)) continue;
+    if (ids.length === MAX_TASK_UPDATES)
+      throw new ProgressInputError('Batch exceeds 1000 task updates');
+    ids.push(id);
+  }
+  return ids;
 }
 function normalizeBatchObject(body: Record<string, unknown>): BatchTaskUpdate[] | null {
   const updates: BatchTaskUpdate[] = [];
-  for (const [id, state] of Object.entries(body)) {
-    if (!hasValidTaskId(id) || !isTaskState(state)) return null;
+  for (const id of boundedTaskUpdateIds(body)) {
+    const state = body[id];
+    if (!isTaskMapEntry(id, state)) return null;
     updates.push({ id, state });
   }
   return updates.length === 0 ? null : updates;
@@ -335,18 +350,13 @@ async function routeTasks(context: RouteContext): Promise<Response | null> {
   if (context.apiPath !== '/progress/tasks' || context.request.method !== 'POST') return null;
   const auth = await authorize(context, 'WP', 'progress-write');
   if (auth instanceof Response) return auth;
-  let body: unknown;
-  try {
-    body = await context.request.json();
-  } catch {
-    return errorResponse(
-      'Invalid JSON body',
-      400,
-      context.origin,
-      context.reqOrigin,
-      auth.rlHeaders
-    );
-  }
+  const body = await parseProgressJsonBody(
+    context.request,
+    context.origin,
+    context.reqOrigin,
+    auth.rlHeaders
+  );
+  if (body instanceof Response) return body;
   const updates = normalizeTaskUpdates(body);
   if (!updates) {
     return errorResponse(
@@ -420,6 +430,9 @@ export async function handleGatewayRequest(
   try {
     return await routeAuthenticated(context);
   } catch (error) {
+    if (error instanceof ProgressInputError) {
+      return errorResponse(error.message, error.status, origin, reqOrigin, context.rlHeaders);
+    }
     if (error instanceof CatalogUnavailableError) {
       return errorResponse(error.message, 503, origin, reqOrigin, context.rlHeaders);
     }
