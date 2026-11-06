@@ -1,8 +1,9 @@
 # Progress contracts
 
-`@tarkovtracker/progress-contracts@0.2.0` owns the existing pure rules used by the browser,
+`@tarkovtracker/progress-contracts@0.2.0 (candidate)` owns the existing pure rules used by the browser,
 Nitro and the public API: task update caps, transitions, requirements, failure edges,
-invalidation, materialized mode progress, season-number validation and display-name projection.
+invalidation, materialized mode progress, season-number validation, display-name projection, and
+permanent mode-scoped task/objective identity reconciliation (`taskIdAliases`).
 There are no runtime dependencies. Callers supply progress and catalog data; this package does
 not fetch, persist, authenticate, select an active season or know about Nuxt/Workers/Supabase.
 
@@ -36,3 +37,9 @@ active. The existing `applyTaskTransition` signature and types remain available,
 and protected-ID arguments no longer cause dependent writes. This behavior change is intentional.
 No release is published by preparing this candidate; all-mode consumer parity and independent
 review are required before freezing its release commit.
+
+The identity contract validates the overlay-owned alias manifest, resolves task/objective IDs,
+reconciles progress and task-ID preference lists, and exports shared fixtures for database and
+consumer parity. Newer comparable clocks win; canonical IDs win equal or unknown clocks.
+Unknown records and reset boundaries are retained. This candidate does not activate mappings or
+publish a release; the frontend remains on its current immutable archive until release validation.

@@ -98,3 +98,15 @@ instead. Reuse an existing authorized build token without exposing its value or 
 2. Supabase health: PostgREST errors for the objects in `supabase-surface.json`.
 3. Limiter health: rising `*_unavailable` events mean requests are being served fail-open.
 4. Abuse: group `abuse_gate_429` by `ip_hash` ([rate-limiting.md](./rate-limiting.md#observability)).
+
+## Task identity rollout (#1302)
+
+`TASK_ID_ALIASES_ENABLED` defaults to `false` so this Worker can deploy before the new RPC.
+Ship Tracker's `get_progress_task_id_aliases()` service-role-only RPC and progress-table triggers,
+then the reviewed `0.1.3` contracts release and Tracker consumers, before enabling this flag.
+Keep aliases empty until all deployed consumers handle canonical IDs. Publish an activated overlay
+manifest and matching catalog definitions with a matching forward SQL manifest migration; wait out
+metadata caches and verify all three modes before retiring placeholder definitions. Keep every
+activated alias permanently. Do not roll back to a consumer that cannot read canonical IDs after
+cutover; disable new writes and restore a compatible consumer instead. No bulk rewrite is part of
+this rollout. See TarkovTracker #1302 and overlay #530 for the coordinated release checklist.

@@ -47,7 +47,13 @@
       "types": "./dist/modeProgress.d.ts",
       "import": "./dist/modeProgress.js"
     },
-    "./fixtures/task-failure-branches.json": "./fixtures/task-failure-branches.json"
+    "./fixtures/task-failure-branches.json": "./fixtures/task-failure-branches.json",
+    "./taskIdAliases": {
+      "types": "./dist/taskIdAliases.d.ts",
+      "import": "./dist/taskIdAliases.js"
+    },
+    "./fixtures/task-id-aliases.json": "./fixtures/task-id-aliases.json",
+    "./fixtures/task-id-alias-cases.json": "./fixtures/task-id-alias-cases.json"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -60,6 +66,6 @@
   },
   "devDependencies": {
     "typescript": "6.0.3",
-    "vitest": "4.1.11"
+    "vitest": "4.1.12"
   }
 }

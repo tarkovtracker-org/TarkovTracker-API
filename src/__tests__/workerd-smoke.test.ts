@@ -1,3 +1,4 @@
+import aliasFixture from '@tarkovtracker/progress-contracts/fixtures/task-id-aliases.json';
 import { fileURLToPath, URL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestHarness, type TestHarness } from 'wrangler';
@@ -54,7 +55,7 @@ const createOutboundFetchMock = (requests: OutboundRequest[], unhandledUrls: str
         {
           token_id: 'runtime-token',
           user_id: 'runtime-user',
-          permissions: ['GP'],
+          permissions: ['GP', 'WP'],
           game_mode: 'seasonal',
           note: 'runtime smoke',
           is_active: true,
@@ -72,9 +73,12 @@ const createOutboundFetchMock = (requests: OutboundRequest[], unhandledUrls: str
     if (url.pathname === '/project/rest/v1/rpc/record_api_usage') {
       return jsonResponse({ ok: true });
     }
+    if (url.pathname === '/project/rest/v1/rpc/get_progress_task_id_aliases')
+      return jsonResponse(aliasFixture);
     if (url.pathname === '/project/rest/v1/rpc/get_active_season_number') {
       return jsonResponse(1);
     }
+    if (url.pathname === '/project/rest/v1/rpc/merge_progress_data') return new Response('1');
     if (url.pathname === '/project/rest/v1/user_game_mode_progress') {
       return jsonResponse([
         {
@@ -97,7 +101,7 @@ const createOutboundFetchMock = (requests: OutboundRequest[], unhandledUrls: str
           tasks: {
             unrelated: {
               id: 'unrelated',
-              objectives: [],
+              objectives: [{ id: 'runtime-objective', type: 'giveItem', count: 3 }],
               failConditions: [],
               taskRequirements: [],
             },
@@ -113,12 +117,13 @@ const createOutboundFetchMock = (requests: OutboundRequest[], unhandledUrls: str
   });
 describe('api-gateway workerd smoke', () => {
   let harness: TestHarness | undefined;
-  beforeEach(async () => {
-    harness = createTestHarness({
+  const makeHarness = (enableAliases = false) =>
+    createTestHarness({
       root: GATEWAY_ROOT,
       workers: [
         {
           configPath: './wrangler.toml',
+          ...(enableAliases ? { vars: { TASK_ID_ALIASES_ENABLED: 'true' } } : {}),
           secrets: {
             IP_HASH_SECRET: 'ip-hash-secret',
             SUPABASE_URL,
@@ -128,6 +133,8 @@ describe('api-gateway workerd smoke', () => {
         },
       ],
     });
+  beforeEach(async () => {
+    harness = makeHarness();
     await harness.listen();
   }, 30_000);
   afterEach(async () => {
@@ -157,7 +164,9 @@ describe('api-gateway workerd smoke', () => {
           const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
           if (url.endsWith('/rpc/increment_token_usage')) {
             await incrementGate;
-            return new Response(JSON.stringify({ code: 'PGRST202' }), { status: 404 });
+            return new Response(JSON.stringify({ code: 'PGRST202' }), {
+              status: 404,
+            });
           }
           if (method === 'PATCH' && url.includes('/api_tokens?')) {
             fallbackStarted = true;
@@ -169,7 +178,10 @@ describe('api-gateway workerd smoke', () => {
       );
       try {
         const response = await harness.getWorker().fetch('https://api.tarkovtracker.org/token', {
-          headers: { Authorization: 'Bearer SZN_workerd_test', 'User-Agent': 'RuntimeSmoke/1.0' },
+          headers: {
+            Authorization: 'Bearer SZN_workerd_test',
+            'User-Agent': 'RuntimeSmoke/1.0',
+          },
         });
         expect(response.status).toBe(200);
         await response.text();
@@ -188,6 +200,9 @@ describe('api-gateway workerd smoke', () => {
           expect(logs).not.toContain('service-key');
         });
         expect(unhandledUrls).toEqual([]);
+        expect(requests.some(({ url }) => url.includes('/rpc/get_progress_task_id_aliases'))).toBe(
+          false
+        );
       } finally {
         releaseIncrement();
         releaseFallback();
@@ -195,6 +210,137 @@ describe('api-gateway workerd smoke', () => {
     },
     30_000
   );
+  it('resolves a verified Seasonal alias in real workerd before writing', async () => {
+    if (!harness) throw new Error('Test harness did not start');
+    await harness.close();
+    harness = makeHarness(true);
+    await harness.listen();
+    const requests: OutboundRequest[] = [];
+    const unhandled: string[] = [];
+    const outbound = createOutboundFetchMock(requests, unhandled);
+    const writes: Record<string, unknown>[] = [];
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (requestUrl(input).includes('/rpc/merge_progress_data')) {
+        const body =
+          input instanceof Request
+            ? await input.clone().text()
+            : await new Response(init?.body).text();
+        writes.push(JSON.parse(body));
+      }
+      return outbound(input, init);
+    });
+    const response = await harness
+      .getWorker()
+      .fetch('https://api.tarkovtracker.org/progress/task/placeholder_uninvited_guests_part_1', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer SZN_workerd_test',
+          'User-Agent': 'RuntimeSmoke/1.0',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ state: 'completed' }),
+      });
+    expect(response.status).toBe(200);
+    expect(writes[0]?.p_task_completions).toEqual({
+      '6a4f528221e50974ab006f6f': expect.objectContaining({ complete: true }),
+    });
+    expect(unhandled).toEqual([]);
+  }, 30_000);
+  it('enforces progress write bounds in real workerd and preserves legitimate Seasonal writes', async () => {
+    if (!harness) throw new Error('Test harness did not start');
+    const requests: OutboundRequest[] = [];
+    const unhandledUrls: string[] = [];
+    const baseFetch = createOutboundFetchMock(requests, unhandledUrls);
+    const writes: Record<string, unknown>[] = [];
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (requestUrl(input).includes('/rpc/merge_progress_data')) {
+        const body =
+          input instanceof Request
+            ? await input.clone().text()
+            : await new Response(init?.body).text();
+        writes.push(JSON.parse(body));
+      }
+      return baseFetch(input, init);
+    });
+    const headers = {
+      Authorization: 'Bearer SZN_workerd_test',
+      'User-Agent': 'RuntimeSmoke/1.0 (+https://example.com)',
+      'Content-Type': 'application/json',
+    };
+    const limit = 256 * 1024;
+    const encoded = new TextEncoder().encode(
+      JSON.stringify([{ id: 'unrelated', state: 'completed', padding: 'é'.repeat(limit / 2) }])
+    );
+    let offset = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (offset === encoded.length) return controller.close();
+        const end = Math.min(offset + 4096, encoded.length);
+        controller.enqueue(encoded.slice(offset, end));
+        offset = end;
+      },
+    });
+    const init = {
+      method: 'POST',
+      headers,
+      body,
+      duplex: 'half' as const,
+    };
+    const oversized = await harness
+      .getWorker()
+      .fetch('https://api.tarkovtracker.org/progress/tasks', init);
+    expect(oversized.status).toBe(413);
+    expect(oversized.headers.get('X-RateLimit-Limit')).toBe('100');
+    expect(oversized.headers.get('Access-Control-Allow-Origin')).toBe('https://tarkovtracker.org');
+    await oversized.arrayBuffer();
+    for (const [path, payload] of [
+      [
+        '/progress/tasks',
+        Array.from({ length: 1001 }, () => ({
+          id: 'unrelated',
+          state: 'completed',
+        })),
+      ],
+      [
+        '/api/v2/progress/tasks',
+        [
+          { id: 'unrelated', state: 'completed' },
+          { id: 'invented', state: 'completed' },
+        ],
+      ],
+      ['/progress/task/objective/invented', { count: 1 }],
+    ] as const) {
+      const rejected = await harness.getWorker().fetch(`https://api.tarkovtracker.org${path}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+      expect(rejected.status).toBe(400);
+      expect(rejected.headers.get('X-RateLimit-Limit')).toBe('100');
+      await rejected.arrayBuffer();
+    }
+    expect(writes).toEqual([]);
+    for (const [path, payload] of [
+      ['/progress/tasks', [{ id: 'unrelated', state: 'failed' }]],
+      ['/progress/tasks', { unrelated: 'uncompleted' }],
+      ['/progress/task/unrelated', { state: 'completed' }],
+      ['/progress/task/objective/runtime-objective', { count: 2 }],
+    ] as const) {
+      const accepted = await harness.getWorker().fetch(`https://api.tarkovtracker.org${path}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+      expect(accepted.status, JSON.stringify(harness.getLogs())).toBe(200);
+      await accepted.arrayBuffer();
+    }
+    expect(writes).toHaveLength(4);
+    expect(writes.every((write) => write.p_field === 'seasonal_data')).toBe(true);
+    expect(unhandledUrls).toEqual([]);
+    expect(requests.some(({ url }) => url.includes('/rpc/get_progress_task_id_aliases'))).toBe(
+      false
+    );
+  }, 30_000);
   it('executes the Seasonal progress path with production configuration', async () => {
     if (!harness) throw new Error('Test harness did not start');
     const requests: OutboundRequest[] = [];
@@ -238,6 +384,9 @@ describe('api-gateway workerd smoke', () => {
     expect(modeUrl.searchParams.get('game_mode')).toBe('eq.seasonal');
     expect(modeUrl.searchParams.get('season_number')).toBe('eq.1');
     expect(unhandledUrls).toEqual([]);
+    expect(requests.some(({ url }) => url.includes('/rpc/get_progress_task_id_aliases'))).toBe(
+      false
+    );
   }, 30_000);
   it('shares catalog I/O across requests after the initiating client disconnects', async () => {
     if (!harness) throw new Error('Test harness did not start');
@@ -271,9 +420,10 @@ describe('api-gateway workerd smoke', () => {
       'User-Agent': 'RuntimeSmoke/1.0 (+https://example.com)',
     };
     const controller = new AbortController();
-    const first = harness
-      .getWorker()
-      .fetch('https://api.tarkovtracker.org/progress', { headers, signal: controller.signal });
+    const first = harness.getWorker().fetch('https://api.tarkovtracker.org/progress', {
+      headers,
+      signal: controller.signal,
+    });
     const cancellation = first.then(
       () => 'completed',
       () => 'aborted'
@@ -304,6 +454,9 @@ describe('api-gateway workerd smoke', () => {
       }
       expect(catalogRequests).toBe(2);
       expect(unhandledUrls).toEqual([]);
+      expect(requests.some(({ url }) => url.includes('/rpc/get_progress_task_id_aliases'))).toBe(
+        false
+      );
     } finally {
       release();
       // Let followers finish before afterEach closes workerd, so a failure above is

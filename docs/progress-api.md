@@ -88,16 +88,24 @@ sequenceDiagram
    Auth (24h cache). This optional lookup uses the existing three-second Supabase request
    deadline, including body parsing; a timeout preserves the user-ID display fallback and is
    not cached. It loads matching tasks/hideout metadata from `json.tarkov.dev` via
-   `src/services/tarkov.ts` (1h memory cache).
+   `src/services/tarkov.ts` (1h memory cache). New isolates first try a versioned, per-colo
+   Cache API snapshot of the normalized public tasks/hideout data. A snapshot retains its
+   original absolute expiry; restoring it never extends the one-hour freshness window.
+   Missing, malformed, expired or unavailable cache entries fall back to the required upstream
+   fetch. Only successfully normalized public metadata is stored; tokens, player progress,
+   permissions, quotas and response bodies never enter this cache. Task snapshots rebuild
+   their immutable prepared graph when restored. Bump the cache version in
+   `src/services/catalog-cache.ts` when changing the normalized format or its interpretation.
    Concurrent misses share one fetch/normalization per resource and upstream mode within an isolate.
    The originating request retains that operation with `waitUntil`; streams are consumed there and
    only parsed public catalog data is shared. Every settled operation leaves the in-flight map;
    failures remain uncached and retryable, with the existing 30-second fetch timeout.
    Missing, empty, or structurally malformed required catalogs return 503 with the ordinary error
    envelope and any available quota headers. Progress and team reads do not return partial derived
-   state or ETags on this path. Single and batch task writes persist explicit states only and
-   do not load catalogs or evaluate dependency rules. Level and objective patches likewise
-   do not evaluate task rules. Expired catalogs are not used as a last-good fallback.
+   state or ETags on this path. Single and batch task writes validate IDs against the mode catalog
+   and enabled identity manifest, then persist explicit states without evaluating dependency rules.
+   Objective patches also validate IDs; level patches do not load catalogs. Expired catalogs are
+   not used as a last-good fallback.
 6. **Transform.** `src/utils/transform.ts` converts the JSONB objects into the
    public array format, applies invalidation (`@tarkovtracker/progress-contracts/progressInvalidation`, the same
    algorithm the app uses) and game-edition hideout auto-completes.
@@ -148,7 +156,7 @@ sequenceDiagram
 
 - Single and batch task writes update only requested IDs through the atomic merge RPC; dependent
   completion, failure and acceptance records are preserved. Eligibility is derived from requirements,
-  never persisted as implicit successor writes. Task updates do not depend on catalog availability.
+  never persisted as implicit successor writes. Catalog availability is required for ID validation.
 - `active` explicitly records acceptance. Terminal and `uncompleted` writes clear it. Reads omit it
   when an unfinished legacy record has no acceptance evidence; terminal records always return false.
 - App user hydration, personal API progress, and team API progress share provider metadata fallback
@@ -176,6 +184,17 @@ sequenceDiagram
 - Invalid task/objective states return 400 with rate-limit headers after authentication and quota
   checks. Error messages preserve scalar values but label arrays and objects without invoking
   client-controlled string coercion, which could otherwise turn malformed input into a 500.
+- Task/objective JSON write bodies are streamed with a 256 KiB actual-byte ceiling before JSON
+  decoding. Oversized bodies return 413 with CORS headers. Quota headers are included when the
+  quota service is available. The ceiling is independent of `Content-Length`. Batch arrays/maps
+  allow at most 1000 entries; array duplicates count before
+  transitions. IDs are nonblank and at most 64 characters, including padding before URL trimming.
+  All requested task/objective IDs must belong to the token mode's current catalog or enabled
+  permanent identity manifest before progress
+  reads, transitions or persistence;
+  stored unknown IDs never become an allowlist. A mixed known/unknown batch fails as a whole.
+  Objective writes now also fail with 503 when that catalog is unavailable. These HTTP guards
+  live in the Worker; shared pure transition rules and database migrations stay unchanged.
 - Personal progress reads select one exact `(user_id, game_mode, season_number)` row and account
   metadata; team reads select that same mode and season for each member. Neither reads another
   mode's progress or uses `select=*`.
@@ -190,3 +209,22 @@ sequenceDiagram
   when the client accepts gzip but explicitly refused identity (`identity;q=0`), in which case
   uncompressed is not an acceptable response and the threshold is bypassed. If no acceptable
   encoding exists the gateway returns `406 no_acceptable_encoding`.
+
+## Permanent task identities
+
+With `TASK_ID_ALIASES_ENABLED=true`, the Worker reads the database's trusted, mode-scoped
+`get_progress_task_id_aliases()` manifest. Verified placeholders remain accepted permanently;
+responses and writes use their canonical task/objective IDs. A target in this manifest is valid
+even before it appears in the raw upstream catalog. All other IDs still require catalog membership.
+The last explicit state wins if a batch contains both identities for the same task.
+
+Reads (including teams) reconcile without modifying stored progress. The newest recorded edit wins
+an alias collision, including unchecks and reduced counts; canonical IDs win equal or absent clocks.
+Objective patches preserve omitted fields. Reconciliation retains unknown records and never invents
+timestamps or carries progress across reset epochs. Histories retain their original event IDs.
+Database reconciliation under the progress-row lock also protects against older browser clients.
+
+The flag defaults to false. Deploy the matching Tracker schema and consumers before enabling it;
+activate actual mappings only with the corresponding catalog definitions. Manifest reads are bounded
+to 256 KiB, cached for one minute per database origin, and fail closed after expiry if unavailable
+or invalid. No alias is activated by this change and no bulk backfill is required.

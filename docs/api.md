@@ -62,7 +62,8 @@ Edge Function; this Worker only validates them. Facts clients rely on:
 Single and batch task updates accept `active`, `completed`, `failed` and `uncompleted`.
 `active` means explicitly accepted, with `complete: false` and `failed: false`. Completed and failed
 writes clear acceptance, as does `uncompleted`. Only requested task IDs are persisted; dependency
-changes never reset or accept successors. Task writes do not fetch the game catalog.
+changes never reset or accept successors. Task writes validate IDs against the mode catalog and
+enabled identity manifest before persisting the requested state; they do not evaluate dependencies.
 
 Progress reads expose optional `active`. Explicit acceptance is returned as true only for unfinished,
 nonfailed tasks. Terminal records return false even if stored legacy flags conflict. Unfinished
@@ -97,6 +98,27 @@ seconds); authorized validation `400`s carry them too. A denial returns `429` wi
 (free-tier bodies include an upgrade link). Abuse-gate `429`s carry only `Retry-After`. When the
 quota service is unavailable the request is served without `X-RateLimit-*` headers (fail open).
 
+## Progress write validation
+
+Task, objective and batch JSON bodies are limited to 262144 bytes (256 KiB), counted from the
+request stream before JSON decoding, independently of `Content-Length`. Larger bodies return
+`413`. Authentication, permissions and daily quota checks still run first; admitted validation
+errors retain CORS headers, plus quota headers when the daily-quota service is available, and
+consume one daily write when quota enforcement succeeds. Quota-service fail-open responses omit
+quota headers.
+
+Batch writes accept either the legacy ID-to-state object or an array of `{id, state}` updates.
+Each batch must contain 1–1000 entries; duplicate array IDs count toward the limit and retain
+their existing ordered transition behavior. Task and objective IDs must be nonblank and at most
+64 characters, including any whitespace padding. URL IDs are decoded, length-checked and then
+trimmed; batch IDs are exact.
+Every supplied ID must exist in the token mode's current task/objective catalog (or its enabled
+permanent identity manifest, described below), even if a
+previously stored progress map contains it. Invalid batches are rejected in full with `400`
+before transitions or persistence. Unavailable catalogs return `503`, including objective writes.
+Clients sending more than 1000 updates must split their requests; dependency cascades retain
+their existing behavior within each request.
+
 ## Conditional requests and polling
 
 `GET /progress` and `GET /team/progress` return a weak `ETag` derived from the response payload
@@ -118,3 +140,22 @@ specific `4xx` messages. Requests on any other host (except `/health`) get a pla
 `{"success": false, "error": "Internal server error"}`; details are logged server-side only, so
 clients must not parse `500` bodies. Missing or malformed upstream task/hideout catalogs return
 `503` in the same envelope.
+
+## Permanent task identities
+
+With `TASK_ID_ALIASES_ENABLED=true`, the Worker reads the database's trusted, mode-scoped
+`get_progress_task_id_aliases()` manifest. Verified placeholders remain accepted permanently;
+responses and writes use their canonical task/objective IDs. A target in this manifest is valid
+even before it appears in the raw upstream catalog. All other IDs still require catalog membership.
+The last explicit state wins if a batch contains both identities for the same task.
+
+Reads (including teams) reconcile without modifying stored progress. The newest recorded edit wins
+an alias collision, including unchecks and reduced counts; canonical IDs win equal or absent clocks.
+Objective patches preserve omitted fields. Reconciliation retains unknown records and never invents
+timestamps or carries progress across reset epochs. Histories retain their original event IDs.
+Database reconciliation under the progress-row lock also protects against older browser clients.
+
+The flag defaults to false. Deploy the matching Tracker schema and consumers before enabling it;
+activate actual mappings only with the corresponding catalog definitions. Manifest reads are bounded
+to 256 KiB, cached for one minute per database origin, and fail closed after expiry if unavailable
+or invalid. No alias is activated by this change and no bulk backfill is required.

@@ -43,6 +43,8 @@ export interface BatchTaskUpdate {
 }
 // User progress data structure (from Supabase)
 export interface UserProgressData {
+  progressEpoch?: number;
+  taskAvailability?: Record<string, unknown>;
   level: number;
   pmcFaction: 'USEC' | 'BEAR';
   displayName: string | null;
