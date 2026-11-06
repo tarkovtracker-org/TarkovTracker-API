@@ -1,0 +1,241 @@
+[
+  {
+    "name": "newer canonical uncheck",
+    "mode": "pvp",
+    "current": {
+      "taskCompletions": {
+        "placeholder_honest_review": {
+          "complete": true,
+          "timestamp": 10
+        },
+        "6a764077161e4b45b101566e": {
+          "complete": false,
+          "timestamp": 20
+        }
+      }
+    },
+    "previous": {},
+    "expected": {
+      "taskCompletions": {
+        "6a764077161e4b45b101566e": {
+          "complete": false,
+          "timestamp": 20
+        }
+      }
+    }
+  },
+  {
+    "name": "canonical without clock",
+    "mode": "pvp",
+    "current": {
+      "taskCompletions": {
+        "placeholder_honest_review": {
+          "complete": true,
+          "timestamp": 10
+        },
+        "6a764077161e4b45b101566e": {
+          "complete": false
+        }
+      }
+    },
+    "previous": {},
+    "expected": {
+      "taskCompletions": {
+        "6a764077161e4b45b101566e": {
+          "complete": false
+        }
+      }
+    }
+  },
+  {
+    "name": "old client newer edit",
+    "mode": "pvp",
+    "current": {
+      "taskCompletions": {
+        "placeholder_honest_review": {
+          "complete": false,
+          "timestamp": 30
+        }
+      }
+    },
+    "previous": {
+      "taskCompletions": {
+        "6a764077161e4b45b101566e": {
+          "complete": true,
+          "timestamp": 20
+        }
+      }
+    },
+    "expected": {
+      "taskCompletions": {
+        "6a764077161e4b45b101566e": {
+          "complete": false,
+          "timestamp": 30
+        }
+      }
+    }
+  },
+  {
+    "name": "old client stale snapshot",
+    "mode": "seasonal",
+    "current": {
+      "taskCompletions": {
+        "placeholder_honest_review": {
+          "complete": true,
+          "timestamp": 10
+        }
+      },
+      "taskObjectives": {
+        "placeholder_honest_review_obj01": {
+          "count": 9,
+          "timestamp": 10
+        }
+      }
+    },
+    "previous": {
+      "taskCompletions": {
+        "6a764077161e4b45b101566e": {
+          "complete": false,
+          "timestamp": 20
+        }
+      },
+      "taskObjectives": {
+        "6a7640eeb85e5647f3dac115": {
+          "count": 0,
+          "timestamp": 20
+        }
+      }
+    },
+    "expected": {
+      "taskCompletions": {
+        "6a764077161e4b45b101566e": {
+          "complete": false,
+          "timestamp": 20
+        }
+      },
+      "taskObjectives": {
+        "6a7640eeb85e5647f3dac115": {
+          "count": 0,
+          "timestamp": 20
+        }
+      }
+    }
+  },
+  {
+    "name": "sparse objective update",
+    "mode": "pvp",
+    "current": {
+      "taskObjectives": {
+        "placeholder_honest_review_obj01": {
+          "count": 0,
+          "timestamp": 30
+        }
+      }
+    },
+    "previous": {
+      "taskObjectives": {
+        "6a7640eeb85e5647f3dac115": {
+          "complete": true,
+          "count": 10,
+          "timestamp": 20
+        }
+      }
+    },
+    "expected": {
+      "taskObjectives": {
+        "6a7640eeb85e5647f3dac115": {
+          "complete": true,
+          "count": 0,
+          "timestamp": 30
+        }
+      }
+    }
+  },
+  {
+    "name": "no inherited objective clock",
+    "mode": "pvp",
+    "current": {
+      "taskObjectives": {
+        "placeholder_honest_review_obj01": {
+          "count": 9,
+          "complete": true,
+          "timestamp": 30
+        },
+        "6a7640eeb85e5647f3dac115": {
+          "count": 0
+        }
+      }
+    },
+    "previous": {},
+    "expected": {
+      "taskObjectives": {
+        "6a7640eeb85e5647f3dac115": {
+          "count": 0,
+          "complete": true
+        }
+      }
+    }
+  },
+  {
+    "name": "reset epoch isolation",
+    "mode": "pvp",
+    "current": {
+      "progressEpoch": 2,
+      "taskCompletions": {}
+    },
+    "previous": {
+      "progressEpoch": 1,
+      "taskCompletions": {
+        "placeholder_honest_review": true
+      }
+    },
+    "expected": {
+      "progressEpoch": 2,
+      "taskCompletions": {}
+    }
+  },
+  {
+    "name": "no pve fallback",
+    "mode": "pve",
+    "current": {
+      "taskCompletions": {
+        "placeholder_honest_review": true
+      }
+    },
+    "previous": {},
+    "expected": {
+      "taskCompletions": {
+        "placeholder_honest_review": true
+      }
+    }
+  },
+  {
+    "name": "retain unknown and metadata",
+    "mode": "pvp",
+    "current": {
+      "level": 42,
+      "taskCompletions": {
+        "placeholder_honest_review": true,
+        "unknown": false
+      },
+      "taskAvailability": {
+        "placeholder_honest_review": {
+          "available": false
+        }
+      }
+    },
+    "previous": {},
+    "expected": {
+      "level": 42,
+      "taskCompletions": {
+        "6a764077161e4b45b101566e": true,
+        "unknown": false
+      },
+      "taskAvailability": {
+        "6a764077161e4b45b101566e": {
+          "available": false
+        }
+      }
+    }
+  }
+]

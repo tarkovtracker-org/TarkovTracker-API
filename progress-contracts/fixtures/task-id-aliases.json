@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "modes": {
+    "regular": {
+      "tasks": {
+        "placeholder_honest_review": "6a764077161e4b45b101566e"
+      },
+      "objectives": {
+        "placeholder_honest_review_obj01": {
+          "id": "6a7640eeb85e5647f3dac115",
+          "taskId": "6a764077161e4b45b101566e"
+        },
+        "placeholder_honest_review_obj02": {
+          "id": "6a76410f25ea8c8932a05eed",
+          "taskId": "6a764077161e4b45b101566e"
+        },
+        "placeholder_honest_review_obj03": {
+          "id": "6a764120b9eb5ecab9aec9de",
+          "taskId": "6a764077161e4b45b101566e"
+        },
+        "placeholder_honest_review_obj04": {
+          "id": "6a859783f08a23e0f6b74c8d",
+          "taskId": "6a764077161e4b45b101566e"
+        },
+        "placeholder_honest_review_obj05": {
+          "id": "6ab4e58f00619535bdfb9623",
+          "taskId": "6a764077161e4b45b101566e"
+        }
+      }
+    },
+    "pve": {
+      "tasks": {},
+      "objectives": {}
+    },
+    "pvp-season": {
+      "tasks": {
+        "placeholder_honest_review": "6a764077161e4b45b101566e",
+        "placeholder_uninvited_guests_part_1": "6a4f528221e50974ab006f6f"
+      },
+      "objectives": {
+        "placeholder_honest_review_obj01": {
+          "id": "6a7640eeb85e5647f3dac115",
+          "taskId": "6a764077161e4b45b101566e"
+        },
+        "placeholder_honest_review_obj02": {
+          "id": "6a76410f25ea8c8932a05eed",
+          "taskId": "6a764077161e4b45b101566e"
+        },
+        "placeholder_honest_review_obj03": {
+          "id": "6a764120b9eb5ecab9aec9de",
+          "taskId": "6a764077161e4b45b101566e"
+        },
+        "placeholder_honest_review_obj04": {
+          "id": "6a859783f08a23e0f6b74c8d",
+          "taskId": "6a764077161e4b45b101566e"
+        },
+        "placeholder_honest_review_obj05": {
+          "id": "6ab4e58f00619535bdfb9623",
+          "taskId": "6a764077161e4b45b101566e"
+        },
+        "placeholder_uninvited_guests_part_1_obj01": {
+          "id": "6a4f536ffbc8e969860a978a",
+          "taskId": "6a4f528221e50974ab006f6f"
+        },
+        "placeholder_uninvited_guests_part_1_obj02": {
+          "id": "6a4f53148e2f06e1c92b75c7",
+          "taskId": "6a4f528221e50974ab006f6f"
+        },
+        "placeholder_uninvited_guests_part_1_obj03": {
+          "id": "6a4f5328e3a7faef5677bea9",
+          "taskId": "6a4f528221e50974ab006f6f"
+        },
+        "placeholder_uninvited_guests_part_1_obj04": {
+          "id": "6a4f53390f29680782fdf8d9",
+          "taskId": "6a4f528221e50974ab006f6f"
+        },
+        "placeholder_uninvited_guests_part_1_obj05": {
+          "id": "6a4f54cffbc043d36ba11ae2",
+          "taskId": "6a4f528221e50974ab006f6f"
+        }
+      }
+    }
+  }
+}

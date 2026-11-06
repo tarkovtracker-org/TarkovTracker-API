@@ -1,3 +1,4 @@
+import aliasFixture from '@tarkovtracker/progress-contracts/fixtures/task-id-aliases.json';
 import branchFixture from '@tarkovtracker/progress-contracts/fixtures/task-failure-branches.json';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import worker, { ApiGatewayRateLimiter } from '../index';
@@ -133,6 +134,7 @@ const createBaseFetchMock = ({
     if (url.includes('/rest/v1/rpc/increment_token_usage')) {
       return jsonResponse({ ok: true });
     }
+    if (url.includes('/rest/v1/rpc/get_progress_task_id_aliases')) return jsonResponse(aliasFixture);
     if (url.includes('/rest/v1/rpc/get_active_season_number')) {
       return jsonResponse(1);
     }
@@ -2508,6 +2510,124 @@ describe('failure branch response parity', () => {
       expect(members.data).toHaveLength(2);
       for (const member of members.data)
         expect(member.tasksProgress.find((task) => task.id === targetId)?.invalid).toBe(true);
+    }
+  );
+});
+describe('mode-scoped task aliases at the HTTP boundary', () => {
+  const source = 'placeholder_honest_review';
+  const target = '6a764077161e4b45b101566e';
+  const objective = '6a7640eeb85e5647f3dac115';
+  const aliasEnv: Env = { ...BASE_ENV, TASK_ID_ALIASES_ENABLED: 'true' };
+  afterEach(() => vi.unstubAllGlobals());
+  it.each(['pvp', 'pve', 'seasonal'] as const)(
+    'accepts only verified %s aliases and returns canonical IDs',
+    async (mode) => {
+      const onMerge = vi.fn();
+      vi.stubGlobal('fetch', createBaseFetchMock({ gameMode: mode, onMerge }));
+      const headers = {
+        ...AUTH_HEADERS,
+        Authorization: `Bearer ${mode === 'pve' ? 'PVE' : mode === 'seasonal' ? 'SZN' : 'PVP'}_alias_test`,
+      };
+      const task = await worker.fetch(
+        buildRequest(`/progress/task/${source}`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ state: 'completed' }),
+        }),
+        aliasEnv
+      );
+      expect(task.status).toBe(mode === 'pve' ? 400 : 200);
+      if (mode === 'pve') {
+        expect(onMerge).not.toHaveBeenCalled();
+        return;
+      }
+      expect(onMerge.mock.calls[0]![0].p_task_completions[target]).toMatchObject({
+        complete: true,
+      });
+      expect(onMerge.mock.calls[0]![0].p_task_completions).not.toHaveProperty(source);
+      const obj = await worker.fetch(
+        buildRequest(`/progress/task/objective/${source}_obj01`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ count: 0 }),
+        }),
+        aliasEnv
+      );
+      expect(obj.status).toBe(200);
+      expect(onMerge.mock.calls[1]![0].p_task_objectives[objective]).toMatchObject({ count: 0 });
+      expect(onMerge.mock.calls[1]![0].p_task_objectives[objective]).not.toHaveProperty('complete');
+      const invalid = await worker.fetch(
+        buildRequest('/progress/task/placeholder_not_proven', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ state: 'completed' }),
+        }),
+        aliasEnv
+      );
+      expect(invalid.status).toBe(400);
+    }
+  );
+  it('uses the last explicit batch state when an alias and canonical ID both occur', async () => {
+    const onMerge = vi.fn();
+    vi.stubGlobal('fetch', createBaseFetchMock({ onMerge }));
+    const response = await worker.fetch(
+      buildRequest('/progress/tasks', {
+        method: 'POST',
+        headers: AUTH_HEADERS,
+        body: JSON.stringify([
+          { id: source, state: 'completed' },
+          { id: target, state: 'uncompleted' },
+        ]),
+      }),
+      aliasEnv
+    );
+    expect(response.status).toBe(200);
+    expect(onMerge.mock.calls[0]![0].p_task_completions).toEqual({
+      [target]: expect.objectContaining({ complete: false }),
+    });
+  });
+  it.each([null, 'team-1'])(
+    'canonicalizes solo/team reads without rewriting saved data (%s)',
+    async (teamId) => {
+      const saved = {
+        level: 10,
+        taskCompletions: {
+          [source]: { complete: true, timestamp: 1 },
+          [target]: { complete: false, timestamp: 2 },
+        },
+        taskObjectives: { [`${source}_obj01`]: { count: 3, complete: true } },
+      };
+      const onMerge = vi.fn();
+      vi.stubGlobal(
+        'fetch',
+        createBaseFetchMock({
+          teamId,
+          onMerge,
+          permissions: ['GP', 'TP'],
+          userProgress: { user_id: 'user-1', progress_data: saved },
+        })
+      );
+      for (const path of ['/progress', '/team/progress']) {
+        const response = await worker.fetch(
+          buildRequest(path, { headers: AUTH_HEADERS }),
+          aliasEnv
+        );
+        expect(response.status).toBe(200);
+        const body = (await response.json()) as {
+          data: Record<string, unknown> | Record<string, unknown>[];
+        };
+        for (const data of Array.isArray(body.data) ? body.data : [body.data]) {
+          expect(data.tasksProgress).toContainEqual(
+            expect.objectContaining({ id: target, complete: false })
+          );
+          expect(data.taskObjectivesProgress).toContainEqual(
+            expect.objectContaining({ id: objective, count: 3 })
+          );
+          expect(JSON.stringify(data)).not.toContain('placeholder_honest_review');
+        }
+      }
+      expect(onMerge).not.toHaveBeenCalled();
+      expect(saved.taskCompletions).toHaveProperty(source);
     }
   );
 });

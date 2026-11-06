@@ -1,6 +1,6 @@
 {
   "name": "@tarkovtracker/progress-contracts",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "private": true,
   "type": "module",
   "files": [
@@ -47,7 +47,13 @@
       "types": "./dist/modeProgress.d.ts",
       "import": "./dist/modeProgress.js"
     },
-    "./fixtures/task-failure-branches.json": "./fixtures/task-failure-branches.json"
+    "./fixtures/task-failure-branches.json": "./fixtures/task-failure-branches.json",
+    "./taskIdAliases": {
+      "types": "./dist/taskIdAliases.d.ts",
+      "import": "./dist/taskIdAliases.js"
+    },
+    "./fixtures/task-id-aliases.json": "./fixtures/task-id-aliases.json",
+    "./fixtures/task-id-alias-cases.json": "./fixtures/task-id-alias-cases.json"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
