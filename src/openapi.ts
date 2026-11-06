@@ -39,6 +39,7 @@ export const OPENAPI_SPEC = {
       'Progress writes: task/objective JSON bodies are limited to 262144 bytes before JSON decoding ' +
       '(413 when exceeded). Batch writes allow 1-1000 entries, counting duplicate array IDs. ' +
       'Task/objective IDs are nonblank, at most 64 characters, and must exist in the token mode catalog ' +
+      'or its enabled permanent identity manifest. Verified aliases resolve to canonical IDs. ' +
       '(400 otherwise). Authentication and quota checks run first; validation errors retain quota headers ' +
       'when the daily-quota service is available.\n\n' +
       'Docs: https://api.tarkovtracker.org/docs (or / on the api subdomain).',

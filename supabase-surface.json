@@ -41,6 +41,10 @@
     }
   },
   "functions": {
+    "get_progress_task_id_aliases": {
+      "args": [],
+      "returns": "jsonb"
+    },
     "get_active_season_number": {
       "args": [],
       "returns": "smallint"

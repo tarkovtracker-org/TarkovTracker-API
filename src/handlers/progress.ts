@@ -1,3 +1,10 @@
+import {
+  reconcileTaskIdentities,
+  resolveTaskId,
+  resolveObjectiveId,
+} from '@tarkovtracker/progress-contracts/taskIdAliases';
+import type { TaskIdAliasMapping } from '@tarkovtracker/progress-contracts/taskIdAliases';
+import { getTaskIdAliases } from '../services/task-id-aliases';
 import { capApiTaskUpdates } from '@tarkovtracker/progress-contracts/apiTaskUpdates';
 import { applyTaskTransition } from '@tarkovtracker/progress-contracts/taskTransitions';
 import { getUserDisplayName } from '@/utils/user-display-name';
@@ -28,21 +35,27 @@ interface ProgressMergePayload {
 }
 async function getWritableTasks(
   gameMode: GameMode,
-  taskIds: readonly string[]
+  taskIds: readonly string[],
+  aliases: TaskIdAliasMapping
 ): Promise<TarkovTask[]> {
   const tasks = await getTasks(gameMode);
-  const knownIds = new Set(tasks.map((task) => task.id));
+  const knownIds = new Set([...tasks.map((task) => task.id), ...Object.values(aliases.tasks)]);
   if (!taskIds.every((id) => knownIds.has(id))) {
     throw new ProgressInputError('Unknown task ID for token game mode');
   }
   return tasks;
 }
-async function validateObjectiveId(gameMode: GameMode, objectiveId: string): Promise<void> {
+async function validateObjectiveId(
+  gameMode: GameMode,
+  objectiveId: string,
+  aliases: TaskIdAliasMapping
+): Promise<void> {
   const tasks = await getTasks(gameMode);
   const known = tasks.some((task) =>
     task.objectives?.some((objective) => objective.id === objectiveId)
   );
-  if (!known) throw new ProgressInputError('Unknown objective ID for token game mode');
+  if (!known && !Object.values(aliases.objectives).some((target) => target.id === objectiveId))
+    throw new ProgressInputError('Unknown objective ID for token game mode');
 }
 function snapshotCompletions(taskCompletions: Record<string, TaskCompletion>): Map<string, string> {
   return new Map(Object.entries(taskCompletions).map(([id, value]) => [id, JSON.stringify(value)]));
@@ -134,7 +147,10 @@ async function fetchProgressRowPair(
   userId: string,
   gameMode: GameMode,
   seasonNumber: number
-): Promise<{ metadataRows: ProgressMetadataRow[]; modeRows: ProgressModeRowFragment[] }> {
+): Promise<{
+  metadataRows: ProgressMetadataRow[];
+  modeRows: ProgressModeRowFragment[];
+}> {
   const modeUrl = `${env.SUPABASE_URL}/rest/v1/user_game_mode_progress?user_id=eq.${userId}&game_mode=eq.${gameMode}&season_number=eq.${seasonNumber}&select=user_id,progress_data&limit=1`;
   const metadataUrl = `${env.SUPABASE_URL}/rest/v1/user_progress?user_id=eq.${userId}&select=user_id,game_edition&limit=1`;
   const [modeResponse, metadataResponse] = await Promise.all([
@@ -193,7 +209,9 @@ async function fetchCurrentProgressData(
 ): Promise<Record<string, unknown>> {
   const seasonNumber = await getGameModeSeasonNumber(env, gameMode);
   const modeUrl = `${env.SUPABASE_URL}/rest/v1/user_game_mode_progress?user_id=eq.${userId}&game_mode=eq.${gameMode}&season_number=eq.${seasonNumber}&select=progress_data&limit=1`;
-  const modeResponse = await fetch(modeUrl, { headers: getServiceHeaders(env) });
+  const modeResponse = await fetch(modeUrl, {
+    headers: getServiceHeaders(env),
+  });
   if (!modeResponse.ok) throw new Error('Failed to fetch user progress');
   const modeRows = (await modeResponse.json()) as Array<{
     progress_data: Record<string, unknown> | null;
@@ -230,7 +248,9 @@ export async function handleGetProgress(
   const row = await fetchUserProgressMode(env, token.user_id, gameMode);
   const gameEdition = row?.game_edition ?? 1;
   // Extract game mode specific data
-  const progressData = extractGameModeData(row);
+  const rawProgress = extractGameModeData(row);
+  const aliases = await getTaskIdAliases(env, gameMode);
+  const progressData = rawProgress ? reconcileTaskIdentities(rawProgress, aliases) : null;
   const fallbackDisplayName =
     progressData?.displayName?.trim() || (await getUserDisplayName(env, token.user_id));
   // Fetch task and hideout data (cached)
@@ -277,8 +297,15 @@ export async function handleUpdateObjective(
   objectiveId: string,
   update: { state?: string; count?: number },
   gameMode: GameMode
-): Promise<{ objectiveId: string; state?: string; count?: number; message: string }> {
-  await validateObjectiveId(gameMode, objectiveId);
+): Promise<{
+  objectiveId: string;
+  state?: string;
+  count?: number;
+  message: string;
+}> {
+  const aliases = await getTaskIdAliases(env, gameMode);
+  objectiveId = resolveObjectiveId(objectiveId, aliases);
+  await validateObjectiveId(gameMode, objectiveId, aliases);
   const dataField = getProgressDataField(gameMode);
   const updateTime = Date.now();
   // Build the patch from `update` only and let the RPC's per-key objective
@@ -319,10 +346,15 @@ export async function handleUpdateTask(
   state: TaskState,
   gameMode: GameMode
 ): Promise<{ taskId: string; state: string; message: string }> {
-  const tasks = await getWritableTasks(gameMode, [taskId]);
+  const aliases = await getTaskIdAliases(env, gameMode);
+  taskId = resolveTaskId(taskId, aliases);
+  const tasks = await getWritableTasks(gameMode, [taskId], aliases);
   const updateTime = Date.now();
   const dataField = getProgressDataField(gameMode);
-  const currentData = await fetchCurrentProgressData(env, token.user_id, gameMode);
+  const currentData = reconcileTaskIdentities(
+    await fetchCurrentProgressData(env, token.user_id, gameMode),
+    aliases
+  );
   const taskCompletions = (currentData.taskCompletions as Record<string, TaskCompletion>) || {};
   const beforeSnapshot = snapshotCompletions(taskCompletions);
   const updateMap = new Map<string, TaskState>();
@@ -355,14 +387,23 @@ export async function handleUpdateTasks(
   updates: BatchTaskUpdate[],
   gameMode: GameMode
 ): Promise<{ updatedTasks: string[]; message: string }> {
+  const aliases = await getTaskIdAliases(env, gameMode);
+  updates = updates.map((update) => ({
+    ...update,
+    id: resolveTaskId(update.id, aliases),
+  }));
   const tasks = await getWritableTasks(
     gameMode,
-    updates.map((update) => update.id)
+    updates.map((update) => update.id),
+    aliases
   );
   const dataField = getProgressDataField(gameMode);
   const updateTime = Date.now();
   // Fetch current data
-  const currentData = await fetchCurrentProgressData(env, token.user_id, gameMode);
+  const currentData = reconcileTaskIdentities(
+    await fetchCurrentProgressData(env, token.user_id, gameMode),
+    aliases
+  );
   const taskCompletions = (currentData.taskCompletions as Record<string, TaskCompletion>) || {};
   const beforeSnapshot = snapshotCompletions(taskCompletions);
   const updateMap = new Map<string, TaskState>();
@@ -372,7 +413,11 @@ export async function handleUpdateTasks(
       taskCompletions,
       tasks,
       { taskId: update.id, state: update.state },
-      { timestamp: updateTime, updates: updateMap, protectedTaskIds: explicitTaskIds }
+      {
+        timestamp: updateTime,
+        updates: updateMap,
+        protectedTaskIds: explicitTaskIds,
+      }
     );
   }
   const changedCompletions = diffCompletions(taskCompletions, beforeSnapshot);
@@ -393,5 +438,8 @@ export async function handleUpdateTasks(
     { taskCompletions: changedCompletions, ...(updateMap.size > 0 && { set }) },
     { action: 'update-tasks', taskIds: updates.map((u) => u.id) }
   );
-  return { updatedTasks: updates.map((u) => u.id), message: 'Tasks updated successfully' };
+  return {
+    updatedTasks: updates.map((u) => u.id),
+    message: 'Tasks updated successfully',
+  };
 }

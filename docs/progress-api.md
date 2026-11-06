@@ -184,7 +184,8 @@ sequenceDiagram
   quota service is available. The ceiling is independent of `Content-Length`. Batch arrays/maps
   allow at most 1000 entries; array duplicates count before
   transitions. IDs are nonblank and at most 64 characters, including padding before URL trimming.
-  All requested task/objective IDs must belong to the token mode's current catalog before progress
+  All requested task/objective IDs must belong to the token mode's current catalog or enabled
+  permanent identity manifest before progress
   reads, transitions or persistence;
   stored unknown IDs never become an allowlist. A mixed known/unknown batch fails as a whole.
   Objective writes now also fail with 503 when that catalog is unavailable. These HTTP guards
@@ -203,3 +204,22 @@ sequenceDiagram
   when the client accepts gzip but explicitly refused identity (`identity;q=0`), in which case
   uncompressed is not an acceptable response and the threshold is bypassed. If no acceptable
   encoding exists the gateway returns `406 no_acceptable_encoding`.
+
+## Permanent task identities
+
+With `TASK_ID_ALIASES_ENABLED=true`, the Worker reads the database's trusted, mode-scoped
+`get_progress_task_id_aliases()` manifest. Verified placeholders remain accepted permanently;
+responses and writes use their canonical task/objective IDs. A target in this manifest is valid
+even before it appears in the raw upstream catalog. All other IDs still require catalog membership.
+The last explicit state wins if a batch contains both identities for the same task.
+
+Reads (including teams) reconcile without modifying stored progress. The newest recorded edit wins
+an alias collision, including unchecks and reduced counts; canonical IDs win equal or absent clocks.
+Objective patches preserve omitted fields. Reconciliation retains unknown records and never invents
+timestamps or carries progress across reset epochs. Histories retain their original event IDs.
+Database reconciliation under the progress-row lock also protects against older browser clients.
+
+The flag defaults to false. Deploy the matching Tracker schema and consumers before enabling it;
+activate actual mappings only with the corresponding catalog definitions. Manifest reads are bounded
+to 256 KiB, cached for one minute per database origin, and fail closed after expiry if unavailable
+or invalid. No alias is activated by this change and no bulk backfill is required.

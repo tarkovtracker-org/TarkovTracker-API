@@ -1,3 +1,6 @@
+import { reconcileTaskIdentities } from '@tarkovtracker/progress-contracts/taskIdAliases';
+import type { TaskIdAliasMapping } from '@tarkovtracker/progress-contracts/taskIdAliases';
+import { getTaskIdAliases } from '../services/task-id-aliases';
 import { getUserDisplayName } from '@/utils/user-display-name';
 import { hasMaterializedProgress } from '@tarkovtracker/progress-contracts/modeProgress';
 import { getTasks, getHideoutStations } from '../services/tarkov';
@@ -70,20 +73,23 @@ const transformUserModeRow = async (
   userId: string,
   gameMode: GameMode
 ): Promise<ProgressResponseData> => {
-  const [tasks, hideoutStations] = await Promise.all([
+  const [tasks, hideoutStations, aliases] = await Promise.all([
     getTasks(gameMode),
     getHideoutStations(gameMode),
+    getTaskIdAliases(env, gameMode),
   ]);
-  return buildProgressData(env, row, userId, tasks, hideoutStations);
+  return buildProgressData(env, row, userId, tasks, hideoutStations, aliases);
 };
 const buildProgressData = async (
   env: Env,
   row: UserProgressModeRow,
   userId: string,
   tasks: Awaited<ReturnType<typeof getTasks>>,
-  hideoutStations: Awaited<ReturnType<typeof getHideoutStations>>
+  hideoutStations: Awaited<ReturnType<typeof getHideoutStations>>,
+  aliases: TaskIdAliasMapping
 ): Promise<ProgressResponseData> => {
-  const progressData = extractGameModeData(row);
+  const rawProgress = extractGameModeData(row);
+  const progressData = rawProgress ? reconcileTaskIdentities(rawProgress, aliases) : null;
   const fallbackDisplayName =
     progressData?.displayName?.trim() || (await getUserDisplayName(env, userId));
   return transformProgress(
@@ -161,9 +167,10 @@ export async function handleGetTeamProgress(
   const progressRows = (await progressRes.json()) as ProgressRow[];
   const editionRows = (await editionsRes.json()) as EditionRow[];
   // Step 4: Fetch task and hideout data (cached)
-  const [tasks, hideoutStations] = await Promise.all([
+  const [tasks, hideoutStations, aliases] = await Promise.all([
     getTasks(gameMode),
     getHideoutStations(gameMode),
+    getTaskIdAliases(env, gameMode),
   ]);
   // Step 5: Transform progress for each team member
   const teamProgress: ProgressResponseData[] = await Promise.all(
@@ -177,7 +184,7 @@ export async function handleGetTeamProgress(
           ? progressRow!.progress_data
           : null,
       };
-      return buildProgressData(env, row, memberId, tasks, hideoutStations);
+      return buildProgressData(env, row, memberId, tasks, hideoutStations, aliases);
     })
   );
   return {
