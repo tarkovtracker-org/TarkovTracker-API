@@ -7,7 +7,7 @@ import type { TaskIdAliasMapping } from '@tarkovtracker/progress-contracts/taskI
 import { getTaskIdAliases } from '../services/task-id-aliases';
 import { capApiTaskUpdates } from '@tarkovtracker/progress-contracts/apiTaskUpdates';
 import { setTaskState } from '@tarkovtracker/progress-contracts/taskTransitions';
-import { getUserDisplayName } from '@/utils/user-display-name';
+import { getUserDisplayName } from '../utils/user-display-name';
 import { hasMaterializedProgress } from '@tarkovtracker/progress-contracts/modeProgress';
 import { getTasks, getHideoutStations } from '../services/tarkov';
 import { getGameModeSeasonNumber } from '../utils/gameMode';
