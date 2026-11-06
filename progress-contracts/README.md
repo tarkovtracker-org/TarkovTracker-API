@@ -35,4 +35,4 @@ The identity contract validates the overlay-owned alias manifest, resolves task/
 reconciles progress and task-ID preference lists, and exports shared fixtures for database and
 consumer parity. Newer comparable clocks win; canonical IDs win equal or unknown clocks.
 Unknown records and reset boundaries are retained. This candidate does not activate mappings or
-publish a release; consumers remain on their current immutable archive until release validation.
+publish a release; the frontend remains on its current immutable archive until release validation.
