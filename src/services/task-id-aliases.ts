@@ -36,6 +36,14 @@ async function readManifest(response: Response): Promise<TaskIdAliases> {
   }
   return parseTaskIdAliases(JSON.parse(new TextDecoder().decode(bytes)));
 }
+const manifestUrl = (base: string): URL => {
+  const url = new URL(base);
+  if (url.protocol !== 'https:') throw new Error('Task identity RPC requires HTTPS');
+  url.pathname = `${url.pathname.replace(/\/+$/, '')}/rest/v1/rpc/get_progress_task_id_aliases`;
+  url.search = '';
+  url.hash = '';
+  return url;
+};
 /** Data-only cache, scoped to the database. Never accept client-provided identity maps. */
 export async function getTaskIdAliases(env: Env, mode: GameMode): Promise<TaskIdAliasMapping> {
   if (env.TASK_ID_ALIASES_ENABLED !== 'true')
@@ -43,8 +51,9 @@ export async function getTaskIdAliases(env: Env, mode: GameMode): Promise<TaskId
   if (cached?.origin === env.SUPABASE_URL && cached.expiresAt > Date.now()) {
     return cached.value.modes[taskAliasMode(mode)];
   }
-  const response = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/get_progress_task_id_aliases`, {
+  const response = await fetch(manifestUrl(env.SUPABASE_URL), {
     method: 'POST',
+    redirect: 'manual',
     headers: {
       Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
       apikey: env.SUPABASE_SERVICE_ROLE_KEY,

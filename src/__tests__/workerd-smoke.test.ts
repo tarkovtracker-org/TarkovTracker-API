@@ -117,14 +117,14 @@ const createOutboundFetchMock = (requests: OutboundRequest[], unhandledUrls: str
   });
 describe('api-gateway workerd smoke', () => {
   let harness: TestHarness | undefined;
-  beforeEach(async () => {
-    harness = createTestHarness({
+  const makeHarness = (enableAliases = false) =>
+    createTestHarness({
       root: GATEWAY_ROOT,
       workers: [
         {
           configPath: './wrangler.toml',
+          ...(enableAliases ? { vars: { TASK_ID_ALIASES_ENABLED: 'true' } } : {}),
           secrets: {
-            TASK_ID_ALIASES_ENABLED: 'true',
             IP_HASH_SECRET: 'ip-hash-secret',
             SUPABASE_URL,
             SUPABASE_ANON_KEY: 'anon-key',
@@ -133,6 +133,8 @@ describe('api-gateway workerd smoke', () => {
         },
       ],
     });
+  beforeEach(async () => {
+    harness = makeHarness();
     await harness.listen();
   }, 30_000);
   afterEach(async () => {
@@ -198,6 +200,9 @@ describe('api-gateway workerd smoke', () => {
           expect(logs).not.toContain('service-key');
         });
         expect(unhandledUrls).toEqual([]);
+        expect(requests.some(({ url }) => url.includes('/rpc/get_progress_task_id_aliases'))).toBe(
+          false
+        );
       } finally {
         releaseIncrement();
         releaseFallback();
@@ -207,6 +212,9 @@ describe('api-gateway workerd smoke', () => {
   );
   it('resolves a verified Seasonal alias in real workerd before writing', async () => {
     if (!harness) throw new Error('Test harness did not start');
+    await harness.close();
+    harness = makeHarness(true);
+    await harness.listen();
     const requests: OutboundRequest[] = [];
     const unhandled: string[] = [];
     const outbound = createOutboundFetchMock(requests, unhandled);
@@ -329,6 +337,9 @@ describe('api-gateway workerd smoke', () => {
     expect(writes).toHaveLength(4);
     expect(writes.every((write) => write.p_field === 'seasonal_data')).toBe(true);
     expect(unhandledUrls).toEqual([]);
+    expect(requests.some(({ url }) => url.includes('/rpc/get_progress_task_id_aliases'))).toBe(
+      false
+    );
   }, 30_000);
   it('executes the Seasonal progress path with production configuration', async () => {
     if (!harness) throw new Error('Test harness did not start');
@@ -373,6 +384,9 @@ describe('api-gateway workerd smoke', () => {
     expect(modeUrl.searchParams.get('game_mode')).toBe('eq.seasonal');
     expect(modeUrl.searchParams.get('season_number')).toBe('eq.1');
     expect(unhandledUrls).toEqual([]);
+    expect(requests.some(({ url }) => url.includes('/rpc/get_progress_task_id_aliases'))).toBe(
+      false
+    );
   }, 30_000);
   it('shares catalog I/O across requests after the initiating client disconnects', async () => {
     if (!harness) throw new Error('Test harness did not start');
@@ -440,6 +454,9 @@ describe('api-gateway workerd smoke', () => {
       }
       expect(catalogRequests).toBe(2);
       expect(unhandledUrls).toEqual([]);
+      expect(requests.some(({ url }) => url.includes('/rpc/get_progress_task_id_aliases'))).toBe(
+        false
+      );
     } finally {
       release();
       // Let followers finish before afterEach closes workerd, so a failure above is

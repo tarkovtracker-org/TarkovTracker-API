@@ -269,7 +269,9 @@ describe('permanent task identities', () => {
 });
 describe('database/browser/Worker parity fixtures', () => {
   it.each(parityCases)('$name', ({ current, previous, mode, expected }) => {
-    const aliases = parseTaskIdAliases(fixture).modes[taskAliasMode(mode as 'pvp' | 'pve' | 'seasonal')];
+    expect(['pvp', 'pve', 'seasonal']).toContain(mode);
+    const aliases =
+      parseTaskIdAliases(fixture).modes[taskAliasMode(mode as 'pvp' | 'pve' | 'seasonal')];
     expect(reconcileTaskIdentities(current, aliases, previous)).toEqual(expected);
   });
 });

@@ -47,6 +47,33 @@ describe('authoritative task identity manifests', () => {
       await expect(getTaskIdAliases(env, 'pvp')).rejects.toThrow();
     }
   );
+  it('normalizes the RPC path and never follows service-credential redirects', async () => {
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(null, { status: 302, headers: { location: 'https://other.invalid/' } })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const { getTaskIdAliases } = await import('../services/task-id-aliases');
+    await expect(
+      getTaskIdAliases(
+        { ...env, SUPABASE_URL: 'https://aliases.example/project/?debug=1#fragment' },
+        'pvp'
+      )
+    ).rejects.toThrow('unavailable');
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      'https://aliases.example/project/rest/v1/rpc/get_progress_task_id_aliases'
+    );
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ redirect: 'manual' });
+  });
+  it('rejects insecure configuration before sending service credentials', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const { getTaskIdAliases } = await import('../services/task-id-aliases');
+    await expect(
+      getTaskIdAliases({ ...env, SUPABASE_URL: 'http://aliases.example' }, 'pvp')
+    ).rejects.toThrow('HTTPS');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
   it('bounds streamed responses without trusting content-length', async () => {
     vi.stubGlobal(
       'fetch',
