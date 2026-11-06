@@ -18,6 +18,19 @@ const entryFor = (tasks: Array<{ id: string; invalid?: boolean }>, id: string) =
   tasks.find((task) => task.id === id);
 describe('transformProgress invalidation', () => {
   it.each([
+    [{ complete: false }, undefined],
+    [{ complete: false, active: false }, false],
+    [{ complete: false, active: true }, true],
+    [{ complete: true, active: true }, false],
+    [{ failed: true, active: true }, false],
+    [{ complete: true, failed: true, active: true }, false],
+  ] as const)('projects explicit acceptance with terminal precedence (%j)', (completion, active) => {
+    const result = transformProgress(baseProgress({ root: completion }), 'user-1', 1, [], []);
+    const entry = result.tasksProgress[0];
+    expect(entry.active).toBe(active);
+    expect(Object.hasOwn(entry, 'active')).toBe(active !== undefined);
+  });
+  it.each([
     { complete: true, failed: false },
     { complete: false, failed: true },
     { complete: true, failed: true },
@@ -39,6 +52,7 @@ describe('transformProgress invalidation', () => {
       expect(entryFor(result.tasksProgress, id)).toEqual({
         id,
         complete: completion.complete && !completion.failed,
+        active: false,
         ...(completion.failed ? { failed: true } : {}),
       });
     }

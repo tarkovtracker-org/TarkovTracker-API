@@ -250,7 +250,7 @@ export const OPENAPI_SPEC = {
       },
       CatalogUnavailable: {
         description:
-          'Required game data is unavailable or malformed. No progress write was made. Retry later.',
+          'Required game data is unavailable or malformed. No progress response or write was produced. Retry later.',
         headers: {
           'X-RateLimit-Limit': { $ref: '#/components/headers/RateLimitLimit' },
           'X-RateLimit-Remaining': { $ref: '#/components/headers/RateLimitRemaining' },
@@ -373,6 +373,11 @@ export const OPENAPI_SPEC = {
         properties: {
           id: { type: 'string' },
           complete: { type: 'boolean' },
+          active: {
+            type: 'boolean',
+            description:
+              'Explicit acceptance state. Omitted on legacy records where acceptance is unknown.',
+          },
           failed: { type: 'boolean' },
           invalid: { type: 'boolean' },
         },
@@ -473,7 +478,9 @@ export const OPENAPI_SPEC = {
           {
             success: true,
             data: {
-              tasksProgress: [{ id: 'task-1', complete: true, failed: false, invalid: false }],
+              tasksProgress: [
+                { id: 'task-1', complete: true, active: false, failed: false, invalid: false },
+              ],
               taskObjectivesProgress: [{ id: 'obj-1', complete: true, count: 2, invalid: false }],
               hideoutModulesProgress: [],
               hideoutPartsProgress: [],
@@ -514,7 +521,7 @@ export const OPENAPI_SPEC = {
       },
       TaskState: {
         type: 'string',
-        enum: ['completed', 'uncompleted', 'failed'],
+        enum: ['active', 'completed', 'uncompleted', 'failed'],
       },
       TaskUpdateRequest: {
         type: 'object',
@@ -891,6 +898,7 @@ export const OPENAPI_SPEC = {
               schema: { $ref: '#/components/schemas/TaskUpdateRequest' },
               examples: {
                 complete: { value: { state: 'completed' } },
+                active: { value: { state: 'active' } },
                 failed: { value: { state: 'failed' } },
                 uncompleted: { value: { state: 'uncompleted' } },
               },
