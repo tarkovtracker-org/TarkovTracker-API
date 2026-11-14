@@ -1790,13 +1790,15 @@ describe('api-gateway', () => {
     expect(byUser.get('user-1')).toBe(4);
     expect(byUser.get('user-2')).toBe(4);
   });
-  it('returns each team member trader standing', async () => {
+  it('returns each team member own trader standing', async () => {
     vi.stubGlobal(
       'fetch',
       createBaseFetchMock({
         permissions: ['TP'],
         teamId: 'team-1',
         teamMembers: ['user-1', 'user-2'],
+        // user-2 has no stored progress, so copying user-1's standing to it would fail.
+        missingProgressUserIds: ['user-2'],
         userProgress: {
           user_id: 'user-1',
           game_edition: 1,
@@ -1812,12 +1814,11 @@ describe('api-gateway', () => {
     const body = (await res.json()) as {
       data: Array<{ tradersProgress: unknown; userId: string }>;
     };
-    expect(body.data.map(({ userId, tradersProgress }) => ({ userId, tradersProgress }))).toEqual(
-      ['user-1', 'user-2'].map((userId) => ({
-        userId,
-        tradersProgress: [{ id: '54cb50c76803fa8b248b4571', level: 2, reputation: 0.27 }],
-      }))
-    );
+    const byUser = new Map(body.data.map((entry) => [entry.userId, entry.tradersProgress]));
+    expect(byUser.get('user-1')).toEqual([
+      { id: '54cb50c76803fa8b248b4571', level: 2, reputation: 0.27 },
+    ]);
+    expect(byUser.get('user-2')).toEqual([]);
   });
   it('defaults missing normalized team progress without reading legacy progress', async () => {
     const fetchMock = createBaseFetchMock({

@@ -109,9 +109,11 @@ their existing behavior within each request.
 
 `GET /progress` and each `GET /team/progress` member include `tradersProgress`: one
 `{id, level, reputation}` entry per trader the user has saved, keyed by tarkov.dev trader ID.
-Traders without an entry, and stored values that are not usable numbers, use the app defaults
-(level 1, reputation 0). Standing comes from the same progress row as the rest of the response,
-so it needs no extra permission and changes the `ETag` when a level or reputation changes.
+Traders the user has never saved are omitted; clients should treat them as level 1, reputation 0
+(the app's defaults). Within an entry, a stored level that is not an integer ≥ 1 is returned as 1,
+and a stored reputation that is not a finite number is returned as 0. Standing comes from the same
+progress row as the rest of the response, so it needs no extra permission and changes the `ETag`
+when a level or reputation changes.
 
 ## Conditional requests and polling
 

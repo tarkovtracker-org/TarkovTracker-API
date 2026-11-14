@@ -414,7 +414,8 @@ export const OPENAPI_SPEC = {
       ProgressTrader: {
         type: 'object',
         description:
-          'Stored trader standing. Traders without an entry use level 1 and reputation 0.',
+          'Stored trader standing. Traders the user has never saved are omitted; ' +
+          'treat them as level 1, reputation 0.',
         properties: {
           id: { type: 'string', description: 'tarkov.dev trader ID.' },
           level: { type: 'integer', minimum: 1, description: 'Trader loyalty level.' },
