@@ -105,6 +105,14 @@ before transitions or persistence. Unavailable catalogs return `503`, including 
 Clients sending more than 1000 updates must split their requests; dependency cascades retain
 their existing behavior within each request.
 
+## Trader standing
+
+`GET /progress` and each `GET /team/progress` member include `tradersProgress`: one
+`{id, level, reputation}` entry per trader the user has saved, keyed by tarkov.dev trader ID.
+Traders without an entry, and stored values that are not usable numbers, use the app defaults
+(level 1, reputation 0). Standing comes from the same progress row as the rest of the response,
+so it needs no extra permission and changes the `ETag` when a level or reputation changes.
+
 ## Conditional requests and polling
 
 `GET /progress` and `GET /team/progress` return a weak `ETag` derived from the response payload

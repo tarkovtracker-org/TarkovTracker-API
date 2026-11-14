@@ -100,3 +100,50 @@ describe('transformProgress invalidation', () => {
     expect(entryFor(result.taskObjectivesProgress, 'bearObj')?.invalid).toBe(true);
   });
 });
+describe('transformProgress trader standing', () => {
+  const PRAPOR = '54cb50c76803fa8b248b4571';
+  const THERAPIST = '54cb57776803fa99248b456e';
+  it('returns each stored trader level and reputation', () => {
+    const progress = baseProgress({});
+    progress.traders = {
+      [PRAPOR]: { level: 4, reputation: 0.52 },
+      [THERAPIST]: { level: 2, reputation: -0.1 },
+    };
+    expect(transformProgress(progress, 'user-1', 1, [], []).tradersProgress).toEqual([
+      { id: PRAPOR, level: 4, reputation: 0.52 },
+      { id: THERAPIST, level: 2, reputation: -0.1 },
+    ]);
+  });
+  it('fills missing or unusable values with the app defaults', () => {
+    const progress = baseProgress({});
+    progress.traders = {
+      onlyLevel: { level: 3 },
+      onlyReputation: { reputation: 0.2 },
+      fractionalLevel: { level: 2.5, reputation: Number.NaN },
+      zeroLevel: { level: 0, reputation: Number.POSITIVE_INFINITY },
+      stringValues: { level: '4', reputation: '0.3' },
+    } as unknown as UserProgressData['traders'];
+    expect(transformProgress(progress, 'user-1', 1, [], []).tradersProgress).toEqual([
+      { id: 'onlyLevel', level: 3, reputation: 0 },
+      { id: 'onlyReputation', level: 1, reputation: 0.2 },
+      { id: 'fractionalLevel', level: 1, reputation: 0 },
+      { id: 'zeroLevel', level: 1, reputation: 0 },
+      { id: 'stringValues', level: 1, reputation: 0 },
+    ]);
+  });
+  it.each([
+    ['no progress row', null],
+    ['missing traders', { ...baseProgress({}), traders: undefined }],
+    ['array traders', { ...baseProgress({}), traders: [] }],
+    ['non-object entries', { ...baseProgress({}), traders: { a: null, b: 3, c: [1] } }],
+  ])('returns an empty list for %s', (_label, progress) => {
+    const result = transformProgress(
+      progress as unknown as UserProgressData | null,
+      'user-1',
+      1,
+      [],
+      []
+    );
+    expect(result.tradersProgress).toEqual([]);
+  });
+});

@@ -10,6 +10,8 @@ import type {
   ProgressResponseObjective,
   ProgressResponseHideoutModule,
   ProgressResponseHideoutPart,
+  ProgressResponseTrader,
+  TraderProgress,
 } from '../types';
 const STASH_STATION_ID = '5d484fc0654e76006657e0ab';
 const CULTIST_CIRCLE_STATION_ID = '667298e75ea6b4493c08f266';
@@ -65,6 +67,29 @@ function markPartComplete(parts: ProgressResponseHideoutPart[], id: string, coun
   } else {
     parts.push({ id, complete: true, count });
   }
+}
+// Same defaults as the app's getTraderLevel/getTraderReputation for absent or unusable values.
+const DEFAULT_TRADER_LEVEL = 1;
+const DEFAULT_TRADER_REPUTATION = 0;
+function traderLevel(value: unknown): number {
+  return Number.isInteger(value) && (value as number) >= 1
+    ? (value as number)
+    : DEFAULT_TRADER_LEVEL;
+}
+function traderReputation(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : DEFAULT_TRADER_REPUTATION;
+}
+/**
+ * Stored trader standing, one entry per trader the user has saved. Traders without an entry
+ * use the app defaults (level 1, reputation 0).
+ */
+function transformTraders(traders: unknown): ProgressResponseTrader[] {
+  if (!traders || typeof traders !== 'object' || Array.isArray(traders)) return [];
+  return Object.entries(traders as Record<string, unknown>).flatMap(([id, data]) => {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return [];
+    const { level, reputation } = data as TraderProgress;
+    return [{ id, level: traderLevel(level), reputation: traderReputation(reputation) }];
+  });
 }
 /**
  * Transform user progress to API response format
@@ -156,6 +181,7 @@ export function transformProgress(
     taskObjectivesProgress,
     hideoutModulesProgress,
     hideoutPartsProgress,
+    tradersProgress: transformTraders(progressData?.traders),
     displayName,
     userId,
     playerLevel: progressData?.level ?? 1,
