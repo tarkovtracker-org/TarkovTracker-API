@@ -88,6 +88,7 @@ const createOutboundFetchMock = (requests: OutboundRequest[], unhandledUrls: str
             level: 7,
             pmcFaction: 'USEC',
             taskCompletions: {},
+            traders: { '54cb50c76803fa8b248b4571': { level: 3, reputation: 0.41 } },
           },
         },
       ]);
@@ -360,6 +361,7 @@ describe('api-gateway workerd smoke', () => {
         taskObjectivesProgress: [],
         hideoutModulesProgress: [],
         hideoutPartsProgress: [],
+        tradersProgress: [{ id: '54cb50c76803fa8b248b4571', level: 3, reputation: 0.41 }],
         displayName: 'Runtime Smoke',
         userId: 'runtime-user',
         playerLevel: 7,

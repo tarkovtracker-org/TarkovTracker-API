@@ -108,7 +108,8 @@ sequenceDiagram
    last-good fallback.
 6. **Transform.** `src/utils/transform.ts` converts the JSONB objects into the
    public array format, applies invalidation (`@tarkovtracker/progress-contracts/progressInvalidation`, the same
-   algorithm the app uses) and game-edition hideout auto-completes.
+   algorithm the app uses) and game-edition hideout auto-completes. Stored trader standing is
+   returned as `tradersProgress` with the app's level 1 / reputation 0 defaults for unusable values.
    Browser and Worker catalogs compile completion-triggered failure edges through
    `@tarkovtracker/progress-contracts/taskFailureEdges`. The existing internal `alternatives` projection remains
    compatible with repair/action consumers; it is derived from `failConditions`, not upstream

@@ -117,11 +117,17 @@ export interface ProgressResponseHideoutPart {
   complete: boolean;
   count?: number;
 }
+export interface ProgressResponseTrader {
+  id: string;
+  level: number;
+  reputation: number;
+}
 export interface ProgressResponseData {
   tasksProgress: ProgressResponseTask[];
   taskObjectivesProgress: ProgressResponseObjective[];
   hideoutModulesProgress: ProgressResponseHideoutModule[];
   hideoutPartsProgress: ProgressResponseHideoutPart[];
+  tradersProgress: ProgressResponseTrader[];
   displayName: string;
   userId: string;
   playerLevel: number;
