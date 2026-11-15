@@ -141,6 +141,10 @@ async function main() {
     try {
       const configPath = join(directory, 'wrangler.json');
       await writeFile(configPath, JSON.stringify(config), { mode: 0o600 });
+      // Keep stdout machine-readable and suppress SDK diagnostics, which can
+      // contain request details. Configure before import and keep through disposal.
+      process.env.WRANGLER_LOG = 'none';
+      process.env.WRANGLER_WRITE_LOGS = 'false';
       const { getPlatformProxy } = await import('wrangler');
       const proxy = await getPlatformProxy({ configPath, remoteBindings: true, persist: false, envFiles: [] });
       return { service: proxy.env.MAINTENANCE, dispose: async () => {

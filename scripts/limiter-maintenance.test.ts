@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath, URL } from 'node:url';
 import { createReadbackRequest, parseOptions, proxyConfig, reportFailure, runMaintenance } from './limiter-maintenance.mjs';
 const account = 'a'.repeat(32);
 const namespace = 'b'.repeat(32);
@@ -35,6 +37,23 @@ function fixture() {
   return { bodies, request, runBatch, dispose, connect };
 }
 describe('bounded maintenance runner', () => {
+  it('prints one JSON receipt without SDK noise in an isolated CLI subprocess', () => {
+    const result = spawnSync(process.execPath, [
+      '--import', new URL('./fixtures/limiter-maintenance-cli-preload.mjs', import.meta.url).href,
+      fileURLToPath(new URL('./limiter-maintenance.mjs', import.meta.url)), ...args,
+    ], {
+      encoding: 'utf8', timeout: 10_000,
+      env: { ...process.env, CLOUDFLARE_API_TOKEN: 'fixture-token', CLOUDFLARE_ACCOUNT_ID: account,
+        WRANGLER_LOG: 'debug', WRANGLER_WRITE_LOGS: 'true' },
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stderr).toBe('');
+    expect(result.stdout.trim().split('\n')).toHaveLength(1);
+    expect(JSON.parse(result.stdout)).toEqual({ mode: 'dry-run', listed: 1, candidates: 1, processed: 1,
+      counts: { 'fixed:eligible': 1 }, nextCursor: null });
+    expect(result.stdout).not.toContain('Establishing remote connection');
+  });
   it('defaults to a single 100-object dry-run with a remote named service binding', async () => {
     const f = fixture();
     const options = parseOptions(args);
