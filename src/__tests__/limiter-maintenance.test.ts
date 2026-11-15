@@ -166,6 +166,20 @@ describe('binding-only maintenance RPC', () => {
     expect(f.storage.deleteAll).not.toHaveBeenCalled();
     expect((await consume(f.limiter)).status).toBe(200);
   });
+  it('reports SQL-only storage as extra-storage without writes', async () => {
+    const f = fixture();
+    f.store.clear();
+    f.storage.sql.exec.mockReturnValue({ toArray: () => [{ name: 'unrecognized' }] });
+    for (const options of [{}, { apply: true }]) {
+      expect(await f.limiter.maintainExpiredState(options)).toEqual({ category: 'unknown', status: 'extra-storage' });
+    }
+    expect(f.storage.sql.exec).toHaveBeenCalledTimes(2);
+    expect(f.store.size).toBe(0);
+    expect(f.storage.put).not.toHaveBeenCalled();
+    expect(f.storage.deleteAll).not.toHaveBeenCalled();
+    expect(f.storage.deleteAlarm).not.toHaveBeenCalled();
+    expect(f.alarm()).toBe(NOW + 10_000);
+  });
   it.each([null, [], true, { apply: 'true' }, { apply: true, other: true }])('rejects malformed options %#', async (value) => {
     const f = fixture();
     await expect(f.limiter.maintainExpiredState(value as never)).rejects.toThrow('Invalid maintenance options');

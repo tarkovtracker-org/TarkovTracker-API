@@ -77,6 +77,17 @@ describe('limiter maintenance in real workerd', () => {
     expect((await snapshot(stub)).state).toMatchObject({ count: 10 });
     expect((await client.runBatch([id], { apply: true })).counts).toEqual({ 'fixed:active': 1 });
   });
+  it('reports SQL-only storage as extra-storage and preserves its table', async () => {
+    const { id, stub } = object('sql-only');
+    await stub.seed(undefined, 'sql');
+    const before = await snapshot(stub);
+    expect(before.keys).toEqual([]);
+    expect(before.tables).toContainEqual({ name: 'unrecognized' });
+    for (const options of [{}, { apply: true }]) {
+      expect(await client.runBatch([id], options)).toEqual({ processed: 1, counts: { 'unknown:extra-storage': 1 } });
+      expect(await snapshot(stub)).toEqual(before);
+    }
+  });
   it('clears a loaded cache and reloads storage after cleanup', async () => {
     const { id, stub } = object('cached');
     await stub.seed({ count: 5, windowSec: 60, resetAt: Date.now() + 60_000 });

@@ -86,6 +86,8 @@ unrecognized SQL schema objects are retained for separate investigation, without
 state or user/IP data. Only the single `state` KV entry and Cloudflare's `_cf_KV`/`_cf_METADATA`
 catalog entries are accepted for complete storage deletion. The SQL check reads catalog names,
 never internal KV or metadata contents.
+`empty` means no KV entries and no unrecognized SQL schema; platform metadata or an alarm can
+still exist. A SQL-only application schema is reported as `extra-storage` and retained.
 
 Recognized fixed windows require a nonnegative integer count, finite nonnegative `resetAt`, positive
 finite `windowSec` and only supported optional `anchor`/`ephemeral` fields. Equality at expiry is

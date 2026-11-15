@@ -123,11 +123,12 @@ export class ApiGatewayRateLimiter extends DurableObject<Env> {
       // Read storage directly, never load()/fetch(): dry-run cannot consume quota,
       // change the cache, write state, or schedule/cancel an alarm.
       const entries = await this.ctx.storage.list<unknown>({ limit: 2 });
-      if (entries.size === 0) return { category: 'unknown', status: 'empty' };
-      if (entries.size !== 1 || !entries.has('state')) {
+      if (entries.size > 0 && (entries.size !== 1 || !entries.has('state'))) {
         return { category: 'unknown', status: 'extra-storage' };
       }
-      const inspection = inspectLimiterState(entries.get('state'), Date.now());
+      const inspection = entries.size === 0
+        ? { category: 'unknown', status: 'empty' } as const
+        : inspectLimiterState(entries.get('state'), Date.now());
       if (inspection.status === 'unknown') return { category: inspection.category, status: 'unknown' };
       // Read only the SQL catalog, never Cloudflare's internal KV table contents.
       // deleteAll also deletes SQL tables, so any unfamiliar schema must be kept.
@@ -135,6 +136,7 @@ export class ApiGatewayRateLimiter extends DurableObject<Env> {
         "SELECT name FROM sqlite_master WHERE name NOT IN ('_cf_KV', '_cf_METADATA') LIMIT 1"
       ).toArray();
       if (tables.length) return { category: inspection.category, status: 'extra-storage' };
+      if (inspection.status === 'empty') return inspection;
       if (inspection.status === 'active') return { category: inspection.category, status: 'active' };
       if (options.apply !== true) return { category: inspection.category, status: 'eligible' };
       this.data = undefined;

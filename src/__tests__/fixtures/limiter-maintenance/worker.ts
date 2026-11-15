@@ -4,7 +4,7 @@ export { LimiterMaintenance } from '../../../limiterMaintenanceService';
 // Test-only storage access. This subclass is never exported by src/index.ts.
 export class ApiGatewayRateLimiter extends Limiter {
   async seed(value: unknown, extra: 'kv' | 'sql' | null = null): Promise<void> {
-    await this.ctx.storage.put('state', value);
+    if (value !== undefined) await this.ctx.storage.put('state', value);
     if (extra === 'kv') await this.ctx.storage.put('unrecognized', 'keep');
     if (extra === 'sql') this.ctx.storage.sql.exec('CREATE TABLE unrecognized(value TEXT)');
     await this.ctx.storage.setAlarm(Date.now() + 3_600_000);
