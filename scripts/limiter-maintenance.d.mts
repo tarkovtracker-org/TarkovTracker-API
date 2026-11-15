@@ -26,6 +26,7 @@ export function proxyConfig(account: string): {
 };
 export function verifyIdentity(options: MaintenanceOptions, request: (path: string) => Promise<unknown>): Promise<void>;
 export function createReadbackRequest(token: string, requestFetch?: typeof fetch): (path: string) => Promise<unknown>;
+export function reportFailure(error: unknown): void;
 export function runMaintenance(options: MaintenanceOptions, dependencies: {
   request: (path: string) => Promise<unknown>;
   connect: (config: ReturnType<typeof proxyConfig>) => Promise<{

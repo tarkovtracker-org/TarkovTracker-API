@@ -85,6 +85,7 @@ export async function runMaintenance(options, { request, connect }) {
   if (!ids.length) return receipt;
   const connection = await connect(proxyConfig(options.account));
   let validatedReceipt;
+  let batchError;
   try {
     const summary = await connection.service.runBatch(ids, { apply: options.apply });
     const allowed = /^(?:(?:fixed|sliding|unknown):(?:empty|unknown|extra-storage|active|eligible|deleted)|error)$/;
@@ -97,11 +98,20 @@ export async function runMaintenance(options, { request, connect }) {
       (!options.apply && Object.keys(summary.counts).some((key) => key.endsWith(':deleted')))
     ) throw new Error('Invalid maintenance receipt');
     validatedReceipt = { ...receipt, processed: summary.processed, counts: summary.counts };
+  } catch (error) {
+    batchError = error;
+    throw error;
   } finally {
     try {
       await connection.dispose();
     } catch {
-      if (!validatedReceipt) throw new Error('Maintenance proxy cleanup failed');
+      if (!validatedReceipt) {
+        throw new AggregateError(
+          [batchError, new Error('Maintenance proxy cleanup failed')],
+          'Maintenance batch and proxy cleanup failed',
+          { cause: batchError }
+        );
+      }
       validatedReceipt.cleanupFailed = true;
     }
   }
@@ -146,10 +156,11 @@ async function main() {
   if (receipt.cleanupFailed) console.error('Maintenance proxy cleanup failed; the validated receipt is retained.');
   if (receipt.counts.error || receipt.cleanupFailed) process.exitCode = 1;
 }
+export function reportFailure(_error) {
+  // Third-party exceptions can include IDs, request data or tokens. Do not print them.
+  console.error('Maintenance stopped. Check arguments, account/binding/version readbacks and authorized service-binding access; no further objects were attempted.');
+  process.exitCode = 1;
+}
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch(() => {
-    // Third-party exceptions can include IDs, request data or tokens. Do not print them.
-    console.error('Maintenance stopped. Check arguments, account/binding/version readbacks and authorized service-binding access; no further objects were attempted.');
-    process.exitCode = 1;
-  });
+  main().catch(reportFailure);
 }

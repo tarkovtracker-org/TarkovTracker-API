@@ -89,8 +89,9 @@ never internal KV or metadata contents.
 `empty` means no KV entries and no unrecognized SQL schema; platform metadata or an alarm can
 still exist. A SQL-only application schema is reported as `extra-storage` and retained.
 
-Recognized fixed windows require a nonnegative integer count, finite nonnegative `resetAt`, positive
-finite `windowSec` and only supported optional `anchor`/`ephemeral` fields. Equality at expiry is
+Recognized fixed windows require a nonnegative safe-integer count, finite nonnegative `resetAt`,
+positive finite `windowSec`, finite `windowSec * 1000` and only supported optional
+`anchor`/`ephemeral` fields. Equality at expiry is
 eligible. Historical sliding state from Tracker
 [`0855aa5`](https://github.com/tarkovtracker-org/TarkovTracker/blob/0855aa5fea170bb3f5fd417adfc254904309d15c/workers/api-gateway/src/index.ts)
 also requires `mode: 'sliding'`, ordered finite timestamps, matching count/oldest reset and no anchor.

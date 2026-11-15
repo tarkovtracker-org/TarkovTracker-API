@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createReadbackRequest, parseOptions, proxyConfig, runMaintenance } from './limiter-maintenance.mjs';
+import { createReadbackRequest, parseOptions, proxyConfig, reportFailure, runMaintenance } from './limiter-maintenance.mjs';
 const account = 'a'.repeat(32);
 const namespace = 'b'.repeat(32);
 const version = '12345678-1234-1234-1234-123456789abc';
@@ -14,11 +14,20 @@ function fixture() {
     objects: { result: [{ id, hasStoredData: true }], result_info: { cursor: 'next-page' } },
   };
   const request = vi.fn(async (path: string) => {
-    if (path.includes('/objects?')) return bodies.objects;
-    if (path.endsWith('/settings')) return bodies.settings;
-    if (path.endsWith('/deployments')) return bodies.deployments;
-    if (path.includes('/namespaces?')) return bodies.namespaces;
-    return bodies.account;
+    const base = `/accounts/${account}`;
+    if (path === base) return bodies.account;
+    if (path === `${base}/workers/scripts/api-gateway/settings`) return bodies.settings;
+    if (path === `${base}/workers/scripts/api-gateway/deployments`) return bodies.deployments;
+    if (path === `${base}/workers/durable_objects/namespaces?per_page=100&page=1`) return bodies.namespaces;
+    const url = new URL(path, 'https://api.cloudflare.com');
+    if (url.origin === 'https://api.cloudflare.com' &&
+      url.pathname === `${base}/workers/durable_objects/namespaces/${namespace}/objects` &&
+      /^\d+$/.test(url.searchParams.get('limit') ?? '') &&
+      Number(url.searchParams.get('limit')) >= 10 && Number(url.searchParams.get('limit')) <= 100 &&
+      url.searchParams.getAll('limit').length === 1 && url.searchParams.getAll('cursor').length <= 1 &&
+      [...url.searchParams.keys()].every((key) => key === 'limit' || key === 'cursor')
+    ) return bodies.objects;
+    throw new Error('Unexpected fixture request');
   });
   const runBatch = vi.fn(async (): Promise<{ processed: number; counts: Record<string, number> }> => ({ processed: 1, counts: { 'fixed:eligible': 1 } }));
   const dispose = vi.fn(async () => {});
@@ -45,6 +54,30 @@ describe('bounded maintenance runner', () => {
     expect(f.runBatch).toHaveBeenCalledWith([id], { apply: true });
     expect(f.request.mock.calls.filter(([path]) => path.endsWith('/deployments'))).toHaveLength(2);
     expect(f.request.mock.calls.find(([path]) => path.includes('/objects?'))?.[0]).toContain('limit=10&cursor=old');
+  });
+  it('stops before connecting when identity changes after inventory', async () => {
+    const f = fixture();
+    const dispatch = f.request.getMockImplementation()!;
+    f.request.mockImplementation(async (path) => {
+      const result = await dispatch(path);
+      if (path === `/accounts/${account}/workers/durable_objects/namespaces/${namespace}/objects?limit=100`) {
+        f.bodies.settings.result.bindings[0].namespace_id = 'd'.repeat(32);
+      }
+      return result;
+    });
+    await expect(runMaintenance(parseOptions([...args, '--apply']), f)).rejects.toThrow('Deployed Worker binding identity mismatch');
+    expect(f.connect).not.toHaveBeenCalled();
+    expect(f.runBatch).not.toHaveBeenCalled();
+  });
+  it('rejects unknown request paths and inventory parameters in the fixture', async () => {
+    const f = fixture();
+    for (const path of [
+      `/accounts/${account}/unknown`,
+      `/accounts/${account}/workers/scripts/wrong/settings`,
+      `/accounts/${account}/workers/durable_objects/namespaces?per_page=100&page=2`,
+      `/accounts/${account}/workers/durable_objects/namespaces/${namespace}/objects?limit=9`,
+      `/accounts/${account}/workers/durable_objects/namespaces/${namespace}/objects?limit=100&unknown=true`,
+    ]) await expect(f.request(path)).rejects.toThrow('Unexpected fixture request');
   });
   it.each([
     [], [...args, '--limit', '9'], [...args, '--limit', '101'], [...args, '--limit', '1.5'],
@@ -119,5 +152,32 @@ describe('bounded maintenance runner', () => {
     const receipt = await runMaintenance(parseOptions([...args, '--apply']), f);
     expect(receipt).toMatchObject({ mode: 'apply', processed: 1, counts: { 'fixed:deleted': 1 }, cleanupFailed: true });
     expect(JSON.stringify(receipt)).not.toContain('private transport detail');
+  });
+  it.each(['RPC error', 'invalid receipt'])('preserves the original %s when disposal also fails', async (kind) => {
+    const f = fixture();
+    const original = new Error('original RPC failure');
+    if (kind === 'RPC error') f.runBatch.mockRejectedValueOnce(original);
+    else f.runBatch.mockResolvedValueOnce({ processed: 0, counts: {} });
+    f.dispose.mockRejectedValueOnce(new Error('private disposal details'));
+    const error = await runMaintenance(parseOptions(args), f).catch((failure: unknown) => failure);
+    expect(error).toBeInstanceOf(AggregateError);
+    const aggregate = error as AggregateError;
+    if (kind === 'RPC error') expect(aggregate.errors[0]).toBe(original);
+    else expect(aggregate.errors[0]).toMatchObject({ message: 'Invalid maintenance receipt' });
+    expect(aggregate.cause).toBe(aggregate.errors[0]);
+    expect(aggregate.errors[1]).toMatchObject({ message: 'Maintenance proxy cleanup failed' });
+    expect(String(aggregate)).not.toContain('private disposal details');
+  });
+  it('prints only the sanitized CLI failure for an aggregate error', () => {
+    const previousExitCode = process.exitCode;
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      reportFailure(new AggregateError([new Error('private request data')], 'private aggregate data'));
+      expect(error).toHaveBeenCalledExactlyOnceWith('Maintenance stopped. Check arguments, account/binding/version readbacks and authorized service-binding access; no further objects were attempted.');
+      expect(process.exitCode).toBe(1);
+    } finally {
+      process.exitCode = previousExitCode;
+      error.mockRestore();
+    }
   });
 });

@@ -154,8 +154,9 @@ migration is needed: the normal DO fetch protocol and alarm behavior remain comp
    `hasStoredData` flag is not proof of orphan status or a namespace total.
 5. A reported object error stops the batch immediately and returns a partial aggregate receipt with
    nonzero exit status. Connection/readback/receipt errors also stop; no further objects are called.
-   Transport failures can leave the last operation's outcome unknown, so retain the receipt and
-   rerun a bounded dry-run from the same **input** cursor before deciding on another apply. Do not
+   Transport failures can leave the last operation's outcome unknown and may produce no receipt.
+   Retain the command error/output and any receipt, then rerun a bounded dry-run from the same
+   **input** cursor before deciding on another apply. Do not
    advance to `nextCursor` after an error or retry destructive batches blindly. Identity readbacks
    are not atomic with RPC calls; the deployment freeze is part of the operational boundary.
    If proxy shutdown fails after a validated result, the receipt is still printed with
