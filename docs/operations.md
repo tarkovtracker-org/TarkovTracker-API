@@ -99,6 +99,87 @@ instead. Reuse an existing authorized build token without exposing its value or 
 3. Limiter health: rising `*_unavailable` events mean requests are being served fail-open.
 4. Abuse: group `abuse_gate_429` by `ip_hash` ([rate-limiting.md](./rate-limiting.md#observability)).
 
+## Expired limiter state maintenance (#16)
+
+This procedure is prepared tooling, not a production cleanup receipt. Obtain separate approval for
+deployment, then separate approval for destructive cleanup with the reviewed account, namespace,
+deployed version and bounded batch. Do not delete/recreate the shared class or namespace. Preserve
+Worker `api-gateway`, class `ApiGatewayRateLimiter`, migration `v1` and namespace
+`832c68d546974f9884747962b5efe97d`; Pages keeps its existing cross-script binding. No Pages deploy or
+migration is needed: the normal DO fetch protocol and alarm behavior remain compatible.
+
+1. Deploy the reviewed API change through the existing approved workflow first. Verify the active
+   immutable version at 100%, `v1`, API/Pages bindings, normal authenticated read/write quota headers
+   and a normal Pages limiter flow. Use designated test credentials and ordinary traffic; do not
+   deliberately exhaust quotas. Keep deployment/build changes frozen during each maintenance batch.
+2. Use pinned Node/pnpm and `pnpm install --frozen-lockfile`. Provision an account-scoped
+   `CLOUDFLARE_API_TOKEN` through the approved secret mechanism, never command arguments or chat.
+   It must permit account details, Workers/DO metadata reads and the remote service-binding session
+   for this account. Remote sessions need Workers script authority; read-only DO-list permissions
+   alone do not grant invocation. Review the current
+   [Workers role guidance](https://developers.cloudflare.com/workers/authorization/workers/).
+   If set, `CLOUDFLARE_ACCOUNT_ID` must equal the explicit expected account.
+3. Record the verified account ID and immutable deployed version in the approved operator record.
+   From this checkout, run one bounded dry-run (PowerShell; values are identifiers, not secrets):
+
+   ```powershell
+   $expectedAccount = '<verified-32-character-account-id>'
+   $expectedVersion = '<approved-deployed-version-uuid>'
+   node scripts/limiter-maintenance.mjs --account $expectedAccount --namespace 832c68d546974f9884747962b5efe97d --version $expectedVersion --limit 100
+   ```
+
+   The runner reads account identity, namespace script/class/SQLite identity, the deployed Worker
+   binding and the sole active version before invoking anything. It checks at most the first 100
+   namespaces and fails closed if the expected one is absent. It requests one object page (10–100 IDs,
+   matching the API's minimum page size),
+   never automatically follows cursors, and skips inventory entries without stored data. It uses
+   Wrangler `getPlatformProxy` with `persist: false`, explicit `remoteBindings: true`, no dotenv
+   inputs and a temporary remote **service** binding to the named `LimiterMaintenance` entrypoint.
+   No operator Worker is deployed or public maintenance route added. Direct remote DO proxies are
+   unsupported by pinned Wrangler; do not substitute one or invoke normal limiter fetch as a probe.
+4. Review the aggregate receipt: `mode`, `listed`, `candidates`, `processed`, bounded
+   `category:status` counts and `nextCursor`. It contains no object IDs, state, users or IPs. `eligible`
+   is a point-in-time classification, not a deletion approval or legacy-object count. After cleanup
+   approval, apply to the same page start (omit `--cursor` for the first page):
+
+   ```powershell
+   node scripts/limiter-maintenance.mjs --account $expectedAccount --namespace 832c68d546974f9884747962b5efe97d --version $expectedVersion --limit 100 --apply
+   ```
+
+   Apply repeats deployment/binding identity checks after listing; every object independently
+   reclassifies its current state under serialization with consumption and alarms. Active quotas,
+   unknown shapes and extra KV/SQL schema remain untouched. For a later separately reviewed bounded
+   page, add `--cursor '<previous-nextCursor>'` to both dry-run and apply. Never build an unlimited
+   pagination loop. Listing and storage reclamation are eventually observable; a cursor or a
+   `hasStoredData` flag is not proof of orphan status or a namespace total.
+5. A reported object error stops the batch immediately and returns a partial aggregate receipt with
+   nonzero exit status. Connection/readback/receipt errors also stop; no further objects are called.
+   Transport failures can leave the last operation's outcome unknown, so retain the receipt and
+   rerun a bounded dry-run from the same **input** cursor before deciding on another apply. Do not
+   advance to `nextCursor` after an error or retry destructive batches blindly. Identity readbacks
+   are not atomic with RPC calls; the deployment freeze is part of the operational boundary.
+   If proxy shutdown fails after a validated result, the receipt is still printed with
+   `cleanupFailed: true` and a nonzero exit status; retain its deletion counts.
+6. After each batch, verify the deployed version and shared bindings again, ordinary API read/write
+   and Pages limiter continuity, and absence of new `daily_quota_unavailable`/5xx spikes. Record
+   before/after category totals, partial errors, page cursors, unknown/extra-state counts and the
+   scope still unexamined in #16. Close only with operational evidence or an explicit evidence-backed
+   disposition. This procedure cannot reconstruct exact legacy key names from opaque IDs.
+
+Stop further batches to roll back maintenance. A Worker code rollback removes the new RPC/service
+but **does not restore deleted DO storage**. `deleteAll()` deallocates the object's database; do not
+promise PITR after deletion. Any recovery needs separate approval and verified platform recovery
+capabilities and can overwrite quotas consumed since the restore point. The safety boundary is
+proof of expiry before deletion, not a reversible quota reset. No namespace migration or mass
+deletion is part of this procedure.
+
+Platform references: [storage deletion/PITR](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/),
+[service RPC](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/),
+[Wrangler proxy API](https://developers.cloudflare.com/workers/wrangler/api/#getplatformproxy),
+[supported remote bindings](https://developers.cloudflare.com/workers/local-development/bindings-per-env/).
+Cloudflare's [workerd metadata source](https://github.com/cloudflare/workerd/blob/main/src/workerd/util/sqlite-metadata.h)
+identifies `_cf_METADATA` as platform alarm metadata, not application state.
+
 ## Task identity rollout (#1302)
 
 `TASK_ID_ALIASES_ENABLED` defaults to `false` so this Worker can deploy before the new RPC.

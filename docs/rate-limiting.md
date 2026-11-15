@@ -70,3 +70,34 @@ verification and alerting are open work ([#17](https://github.com/tarkovtracker-
 | DO retained keys        | Expire by window logic.                                                                                                                              |
 | Legacy burst/IP DO keys | Orphaned by the daily-quota refactor (no cleanup alarms); staged cleanup is [#16](https://github.com/tarkovtracker-org/TarkovTracker-API/issues/16). |
 | `api_usage_daily`       | 180 days, nightly pg_cron job owned by TarkovTracker `supabase/`.                                                                                    |
+
+## Expired-state maintenance (#16)
+
+The binding-only `LimiterMaintenance.runBatch` service and
+`ApiGatewayRateLimiter.maintainExpiredState` RPC support bounded dry-run and explicitly requested
+cleanup. Neither is a public HTTP route. Deployment and production cleanup require separate
+authorization; adding the tooling does not establish that any production state was reclaimed.
+See [the operator procedure](./operations.md#expired-limiter-state-maintenance-16).
+
+Object IDs are opaque: this process inventories **recognized expired state**, not exact legacy
+burst/IP objects. It can reclaim expired daily or Pages state too, which the normal limiter already
+treats as absent. Active quotas remain intact. Unknown, malformed, mixed-schema, extra KV or
+unrecognized SQL schema objects are retained for separate investigation, without returning their
+state or user/IP data. Only the single `state` KV entry and Cloudflare's `_cf_KV`/`_cf_METADATA`
+catalog entries are accepted for complete storage deletion. The SQL check reads catalog names,
+never internal KV or metadata contents.
+
+Recognized fixed windows require a nonnegative integer count, finite nonnegative `resetAt`, positive
+finite `windowSec` and only supported optional `anchor`/`ephemeral` fields. Equality at expiry is
+eligible. Historical sliding state from Tracker
+[`0855aa5`](https://github.com/tarkovtracker-org/TarkovTracker/blob/0855aa5fea170bb3f5fd417adfc254904309d15c/workers/api-gateway/src/index.ts)
+also requires `mode: 'sliding'`, ordered finite timestamps, matching count/oldest reset and no anchor.
+Every timestamp must have expired by its full window; an elapsed oldest `resetAt` alone is unsafe.
+Current and historical shapes outside this strict whitelist remain untouched.
+
+Each applying call reads and classifies current storage again while serialized with normal requests
+and alarms. It invalidates the loaded cache, cancels the alarm and deletes storage only after those
+checks. A stale dry-run never authorizes deletion of newly active state. Dry-run invokes/accesses
+the object and may initialize its runtime, but does not explicitly write storage, consume quota,
+change its cache or schedule/cancel alarms. Platform billing, invocation logs and already scheduled
+alarms can still occur independently of maintenance.

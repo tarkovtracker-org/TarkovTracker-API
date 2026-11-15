@@ -1,0 +1,6 @@
+name = "limiter-maintenance-client-test"
+main = "client.ts"
+compatibility_date = "2026-08-25"
+workers_dev = false
+preview_urls = false
+services = [{ binding = "MAINTENANCE", service = "limiter-maintenance-test", entrypoint = "LimiterMaintenance" }]
