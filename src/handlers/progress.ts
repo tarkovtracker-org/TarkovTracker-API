@@ -256,7 +256,9 @@ export async function handleGetProgress(
   const matchingRow = previous?.modeText === modeText ? previous : undefined;
   const parsed = matchingRow ? undefined : parseProgressRead(modeText);
   // Task identity reconciliation only rewrites task-keyed fields.
-  const hasDisplayName = matchingRow?.hasDisplayName ?? Boolean(parsed?.displayName?.trim());
+  const storedName = parsed?.displayName;
+  const hasDisplayName =
+    matchingRow?.hasDisplayName ?? (typeof storedName === 'string' && storedName.trim().length > 0);
   const aliases = await getTaskIdAliases(env, gameMode);
   const fallbackDisplayName = hasDisplayName ? null : await getUserDisplayName(env, userId);
   const [tasks, hideout] = await Promise.all([

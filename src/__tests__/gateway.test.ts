@@ -2097,6 +2097,18 @@ describe('api-gateway', () => {
     const body = (await res.json()) as { success: boolean };
     expect(body.success).toBe(true);
   });
+  it('treats a legacy non-string display name as absent', async () => {
+    const baseFetch = createBaseFetchMock({ permissions: ['GP'] });
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (String(url).includes('/rest/v1/user_game_mode_progress')) {
+        return jsonResponse([{ user_id: 'user-1', progress_data: { level: 12, displayName: 42 } }]);
+      }
+      return baseFetch(url, init);
+    });
+    const result = await worker.fetch(progressRequest(), BASE_ENV);
+    expect(result.status).toBe(200);
+    expect(await result.json()).toMatchObject({ data: { displayName: 'user-1', playerLevel: 12 } });
+  });
   it('gzips large /progress responses when the client accepts gzip', async () => {
     vi.stubGlobal(
       'fetch',
