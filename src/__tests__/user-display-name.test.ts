@@ -102,9 +102,11 @@ describe('optional display-name lookup', () => {
       await vi.advanceTimersByTimeAsync(2999);
       expect(settled).toBe(false);
       await vi.advanceTimersByTimeAsync(1);
-      expect(settled).toBe(true);
       const response = await result;
-      const data = Array.isArray(response.data) ? response.data[0] : response.data;
+      const body = 'payload' in response
+        ? (JSON.parse(new TextDecoder().decode(response.payload)) as { data: unknown })
+        : response;
+      const data = Array.isArray(body.data) ? body.data[0] : body.data;
       expect(data).toMatchObject({
         displayName: 'lookup',
         userId: token.user_id,

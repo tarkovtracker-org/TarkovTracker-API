@@ -2053,6 +2053,40 @@ describe('api-gateway', () => {
     expect(second.headers.get('X-RateLimit-Limit')).toBe('1000');
     expect(second.headers.get('Cache-Control')).toBe('private, max-age=15');
   });
+  it('reuses the payload digest while fresh inputs match and rebuilds after an edition change', async () => {
+    const userProgress = {
+      user_id: 'user-1',
+      game_edition: 1,
+      pvp_data: { taskCompletions: manyCompletions },
+      pve_data: null,
+    };
+    const fetchMock = createBaseFetchMock({ permissions: ['GP'], userProgress });
+    vi.stubGlobal('fetch', fetchMock);
+    const first = await worker.fetch(progressRequest(), BASE_ENV);
+    const etag = first.headers.get('ETag')!;
+    const conditional = { 'If-None-Match': etag };
+    const digest = vi.spyOn(crypto.subtle, 'digest');
+    try {
+      const unchanged = await worker.fetch(progressRequest('pvp', conditional), BASE_ENV);
+      expect(unchanged.status).toBe(304);
+      expect(digest).toHaveBeenCalledTimes(1); // Auth still hashes the token.
+      userProgress.game_edition = 2;
+      const changed = await worker.fetch(progressRequest('pvp', conditional), BASE_ENV);
+      expect(changed.status).toBe(200);
+      expect(changed.headers.get('ETag')).not.toBe(etag);
+      expect(await changed.json()).toMatchObject({ data: { gameEdition: 2 } });
+      deleteMemoryCache('tarkov:tasks:regular');
+      digest.mockClear();
+      const refreshed = await worker.fetch(
+        progressRequest('pvp', { 'If-None-Match': changed.headers.get('ETag')! }),
+        BASE_ENV
+      );
+      expect(refreshed.status).toBe(304);
+      expect(digest).toHaveBeenCalledTimes(2); // A refreshed catalog requires a fresh payload.
+    } finally {
+      digest.mockRestore();
+    }
+  });
   it('returns the full body when If-None-Match does not match', async () => {
     vi.stubGlobal('fetch', createBaseFetchMock({ permissions: ['GP'] }));
     const res = await worker.fetch(

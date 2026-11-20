@@ -19,6 +19,7 @@ import {
   openApiResponse,
   parseJsonObjectBody,
   parseProgressJsonBody,
+  prepareReadRepresentation,
   successResponse,
   tokenFlatResponse,
 } from './responses';
@@ -245,7 +246,7 @@ async function routeTeamProgress(context: RouteContext): Promise<Response | null
   );
   return conditionalReadResponse(
     context.request,
-    progress,
+    await prepareReadRepresentation(progress),
     context.origin,
     context.reqOrigin,
     auth.rlHeaders
