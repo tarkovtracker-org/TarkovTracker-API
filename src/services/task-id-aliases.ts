@@ -10,6 +10,7 @@ import type {
 import type { Env, GameMode } from '../types';
 const MAX_MANIFEST_BYTES = 256 * 1024;
 const CACHE_MS = 60_000;
+const disabledAliases = emptyTaskIdAliases();
 let cached: { origin: string; expiresAt: number; value: TaskIdAliases } | undefined;
 async function readManifest(response: Response): Promise<TaskIdAliases> {
   if (!response.ok || !response.body) throw new Error('Task identity manifest unavailable');
@@ -47,7 +48,7 @@ const manifestUrl = (base: string): URL => {
 /** Data-only cache, scoped to the database. Never accept client-provided identity maps. */
 export async function getTaskIdAliases(env: Env, mode: GameMode): Promise<TaskIdAliasMapping> {
   if (env.TASK_ID_ALIASES_ENABLED !== 'true')
-    return emptyTaskIdAliases().modes[taskAliasMode(mode)];
+    return disabledAliases.modes[taskAliasMode(mode)];
   if (cached?.origin === env.SUPABASE_URL && cached.expiresAt > Date.now()) {
     return cached.value.modes[taskAliasMode(mode)];
   }

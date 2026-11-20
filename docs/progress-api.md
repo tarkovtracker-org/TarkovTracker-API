@@ -194,8 +194,11 @@ sequenceDiagram
 - Personal progress reads select one exact `(user_id, game_mode, season_number)` row and account
   metadata; team reads select that same mode and season for each member. Neither reads another
   mode's progress or uses `select=*`.
-- Read responses derive the `ETag` from the serialized payload (not `updated_at`), so a `304` can
-  never hide a change that came from task metadata or invalidation rather than the user's row.
+- Read responses derive the `ETag` from the serialized payload. The solo route keeps up to 32
+  representations per isolate, each with at most 128 KiB of raw progress text and response bytes
+  combined. Entries are scoped by database, user, mode, and season. Every request still goes through
+  authentication, quota enforcement, and the normal source reads. Any change to the progress row,
+  edition, display name, or catalog/alias snapshot regenerates the representation.
 - Read responses are `private` (token-scoped) — no shared/edge caching of authenticated progress.
 - The ETag digest and the gzip decision both derive from the same serialized UTF-8 payload bytes,
   so the validator and the payload can never disagree. The wire body is those bytes uncompressed,
