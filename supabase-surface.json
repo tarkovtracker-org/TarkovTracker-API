@@ -63,6 +63,22 @@
       ],
       "returns": "integer"
     },
+    "record_api_request_activity": {
+      "args": [
+        ["p_user_id", "uuid"],
+        ["p_token_id", "uuid"],
+        ["p_occurred_at", "timestamptz"],
+        ["p_endpoint", "text"],
+        ["p_client", "text"],
+        ["p_status", "integer"],
+        ["p_kind", "text"],
+        ["p_outcome", "text"],
+        ["p_limit", "integer"],
+        ["p_remaining", "integer"],
+        ["p_reset_at_ms", "bigint"]
+      ],
+      "returns": "void"
+    },
     "record_api_usage": {
       "args": [
         ["p_user_id", "uuid"],

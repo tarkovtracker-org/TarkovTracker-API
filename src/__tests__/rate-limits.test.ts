@@ -60,10 +60,14 @@ const makeFetchMock = ({
   userId,
   supporter,
   rpcCalls,
+  activityCalls,
+  activityStatus = 204,
 }: {
   userId: string;
   supporter?: { tier: string; status: string; expires_at?: string | null };
   rpcCalls?: Array<Record<string, unknown>>;
+  activityCalls?: Array<Record<string, unknown>>;
+  activityStatus?: number;
 }) =>
   vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url =
@@ -89,6 +93,10 @@ const makeFetchMock = ({
     if (url.includes('/rest/v1/rpc/record_api_usage')) {
       rpcCalls?.push(JSON.parse(String(init?.body || '{}')) as Record<string, unknown>);
       return jsonResponse({ ok: true });
+    }
+    if (url.includes('/rest/v1/rpc/record_api_request_activity')) {
+      activityCalls?.push(JSON.parse(String(init?.body)));
+      return new Response(null, { status: activityStatus });
     }
     if (url.includes('/rest/v1/rpc/increment_token_usage')) {
       return jsonResponse({ ok: true });
@@ -479,6 +487,51 @@ describe('daily quota and abuse gate', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('X-RateLimit-Limit')).toBe(String(TIER_LIMITS.chad.readsPerDay));
     expect(calls[0].body).toMatchObject({ limit: TIER_LIMITS.chad.readsPerDay });
+  });
+  it.each([
+    { allowed: true, status: 400, outcome: 'counted', userAgent: 'ExampleSync/1.0 (+https://example.com/private)', client: 'examplesync', activityStatus: 204 },
+    { allowed: false, status: 429, outcome: 'throttled', userAgent: 'ExampleSync/1.0', client: 'examplesync', activityStatus: 204 },
+    { allowed: false, status: 429, outcome: 'throttled', userAgent: 'Bot-abc123/1.0', client: null, activityStatus: 404 },
+  ])('records a normalized write with HTTP $status and its quota decision', async ({
+    allowed, status, outcome, userAgent, client, activityStatus,
+  }) => {
+    const activityCalls: Record<string, unknown>[] = [];
+    const resetAt = Date.now() + 60000;
+    const remaining = allowed ? 19 : 0;
+    const env: Env = {
+      API_GATEWAY_LIMITER: makeCapturingLimiter([], () => ({ allowed, remaining, resetAt })),
+      SUPABASE_URL: 'https://supabase.example',
+      SUPABASE_ANON_KEY: 'anon',
+      SUPABASE_SERVICE_ROLE_KEY: 'service',
+    };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubGlobal('fetch', makeFetchMock({ userId: 'user-free', activityCalls, activityStatus }));
+    const response = await worker.fetch(buildRequest('/api/v2/progress/task/private-id?secret=omit', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer PVP_abc123',
+        'User-Agent': userAgent,
+        'Content-Type': 'application/json',
+      },
+      body: '{"state":"invalid","private":"do not store"}',
+    }), env);
+    expect(response.status).toBe(status);
+    expect(await response.json()).toMatchObject({ success: false, error: expect.any(String) });
+    expect(activityCalls).toEqual([{
+      p_user_id: 'user-free',
+      p_token_id: 'token-1',
+      p_occurred_at: expect.any(String),
+      p_endpoint: 'POST /progress/task/{id}',
+      p_client: client,
+      p_status: status,
+      p_kind: 'write',
+      p_outcome: outcome,
+      p_limit: TIER_LIMITS.free.writesPerDay,
+      p_remaining: remaining,
+      p_reset_at_ms: resetAt,
+    }]);
+    if (activityStatus === 404)
+      expect(warn).toHaveBeenCalledWith('record_api_request_activity failed', { status: 404 });
   });
   it('returns an upgrade message when a free user exhausts the daily quota', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
