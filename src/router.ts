@@ -1,6 +1,7 @@
 import { CatalogUnavailableError } from './services/catalog-error';
 import { extractBearerToken } from './auth';
-import { authenticateAndRateLimit } from './authentication';
+import { authenticateAndRateLimit, type QuotaDecision } from './authentication';
+import { recordRequestActivity, type ActivityEndpoint } from './services/request-activity';
 import {
   handleGetProgress,
   handleUpdateLevel,
@@ -48,6 +49,7 @@ type RouteContext = {
   rawToken: string;
   reqOrigin?: string;
   request: Request;
+  activity?: { endpoint: ActivityEndpoint; decision: QuotaDecision };
 };
 type AuthResult = Awaited<ReturnType<typeof authenticateAndRateLimit>>;
 type RouteHandler = (context: RouteContext) => Promise<Response | null>;
@@ -116,7 +118,8 @@ function publicResponse(
 async function authorize(
   context: RouteContext,
   permission: Permission,
-  action: Action
+  action: Action,
+  endpoint: ActivityEndpoint
 ): Promise<AuthResult> {
   const result = await authenticateAndRateLimit({
     action,
@@ -128,6 +131,9 @@ async function authorize(
     request: context.request,
     requestOrigin: context.reqOrigin,
     userAgent: context.inboundUserAgent,
+    onQuotaDecision: (decision) => {
+      context.activity = { endpoint, decision };
+    },
   });
   if (!(result instanceof Response)) context.rlHeaders = result.rlHeaders;
   return result;
@@ -209,7 +215,7 @@ function validateObjectiveUpdate(body: Record<string, unknown>): ObjectiveUpdate
 }
 async function routeToken(context: RouteContext): Promise<Response | null> {
   if (context.apiPath !== '/token' || context.request.method !== 'GET') return null;
-  const auth = await authorize(context, 'GP', 'token-info');
+  const auth = await authorize(context, 'GP', 'token-info', 'GET /token');
   if (auth instanceof Response) return auth;
   return tokenFlatResponse(
     handleGetToken(auth.validation.token, context.rawToken),
@@ -220,7 +226,7 @@ async function routeToken(context: RouteContext): Promise<Response | null> {
 }
 async function routeProgress(context: RouteContext): Promise<Response | null> {
   if (context.apiPath !== '/progress' || context.request.method !== 'GET') return null;
-  const auth = await authorize(context, 'GP', 'progress-read');
+  const auth = await authorize(context, 'GP', 'progress-read', 'GET /progress');
   if (auth instanceof Response) return auth;
   const progress = await handleGetProgress(
     context.env,
@@ -237,7 +243,7 @@ async function routeProgress(context: RouteContext): Promise<Response | null> {
 }
 async function routeTeamProgress(context: RouteContext): Promise<Response | null> {
   if (context.apiPath !== '/team/progress' || context.request.method !== 'GET') return null;
-  const auth = await authorize(context, 'TP', 'progress-read');
+  const auth = await authorize(context, 'TP', 'progress-read', 'GET /team/progress');
   if (auth instanceof Response) return auth;
   const progress = await handleGetTeamProgress(
     context.env,
@@ -255,7 +261,7 @@ async function routeTeamProgress(context: RouteContext): Promise<Response | null
 async function routeLevel(context: RouteContext): Promise<Response | null> {
   const match = context.apiPath.match(/^\/progress\/level\/(\d+)$/);
   if (!match || context.request.method !== 'POST') return null;
-  const auth = await authorize(context, 'WP', 'progress-write');
+  const auth = await authorize(context, 'WP', 'progress-write', 'POST /progress/level/{level}');
   if (auth instanceof Response) return auth;
   const level = parseInt(match[1], 10);
   if (isNaN(level) || level < 1 || level > 79) {
@@ -278,7 +284,7 @@ async function routeLevel(context: RouteContext): Promise<Response | null> {
 async function routeObjective(context: RouteContext): Promise<Response | null> {
   const match = context.apiPath.match(/^\/progress\/task\/objective\/([^/]+)$/);
   if (!match || context.request.method !== 'POST') return null;
-  const auth = await authorize(context, 'WP', 'progress-write');
+  const auth = await authorize(context, 'WP', 'progress-write', 'POST /progress/task/objective/{id}');
   if (auth instanceof Response) return auth;
   const objectiveId = decodeUrlParam(
     match[1],
@@ -311,7 +317,7 @@ async function routeObjective(context: RouteContext): Promise<Response | null> {
 async function routeTask(context: RouteContext): Promise<Response | null> {
   const match = context.apiPath.match(/^\/progress\/task\/([^/]+)$/);
   if (!match || context.request.method !== 'POST') return null;
-  const auth = await authorize(context, 'WP', 'progress-write');
+  const auth = await authorize(context, 'WP', 'progress-write', 'POST /progress/task/{id}');
   if (auth instanceof Response) return auth;
   const taskId = decodeUrlParam(
     match[1],
@@ -349,7 +355,7 @@ async function routeTask(context: RouteContext): Promise<Response | null> {
 }
 async function routeTasks(context: RouteContext): Promise<Response | null> {
   if (context.apiPath !== '/progress/tasks' || context.request.method !== 'POST') return null;
-  const auth = await authorize(context, 'WP', 'progress-write');
+  const auth = await authorize(context, 'WP', 'progress-write', 'POST /progress/tasks');
   if (auth instanceof Response) return auth;
   const body = await parseProgressJsonBody(
     context.request,
@@ -428,6 +434,22 @@ export async function handleGatewayRequest(
     reqOrigin,
     request,
   };
+  const result = await dispatchAuthenticated(context);
+  if (context.activity) {
+    const activity = recordRequestActivity(
+      env,
+      context.activity,
+      result.status,
+      inboundUserAgent,
+      rawToken
+    );
+    if (ctx) ctx.waitUntil(activity);
+    else await activity;
+  }
+  return result;
+}
+async function dispatchAuthenticated(context: RouteContext): Promise<Response> {
+  const { origin, reqOrigin } = context;
   try {
     return await routeAuthenticated(context);
   } catch (error) {

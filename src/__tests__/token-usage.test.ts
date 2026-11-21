@@ -64,7 +64,7 @@ describe('token lifetime accounting', () => {
       );
       expect(response.status).toBe(429);
       expect(response.headers.get('X-RateLimit-Remaining')).toBe('0');
-      expect(pending).toHaveLength(2); // Lifetime increment plus daily throttle accounting.
+      expect(pending).toHaveLength(3); // Lifetime, daily totals, and request activity.
     } finally {
       release(new Response(null, { status: 204 }));
       await Promise.all(pending);

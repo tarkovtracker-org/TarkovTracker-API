@@ -104,3 +104,11 @@ checks. A stale dry-run never authorizes deletion of newly active state. Dry-run
 the object and may initialize its runtime, but does not explicitly write storage, consume quota,
 change its cache or schedule/cancel alarms. Platform billing, invocation logs and already scheduled
 alarms can still occur independently of maintenance.
+
+## Account request activity
+
+After a valid token reaches the daily quota check, the gateway records the quota decision and
+final HTTP status in a separate best-effort write. The record uses the route template and first
+normalized User-Agent product name, omitting request paths with parameters, addresses, raw headers
+and content. This includes daily quota throttles and fail-open decisions and excludes pre-auth
+abuse throttles. The settings UI reads the latest recorded decision per account and quota kind.
