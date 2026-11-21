@@ -11,14 +11,11 @@ export type ActivityEndpoint =
 function clientLabel(userAgent: string, token: string): string | null {
   // Accept only the initial product name. Drop versions, comments, URLs and browser fingerprints.
   const product = /^([a-z][a-z0-9.-]{0,47})\/[0-9][a-z0-9.-]*(?:\s|$)/i.exec(userAgent)?.[1];
-  if (
-    !product ||
-    /^mozilla$/i.test(product) ||
-    token.toLowerCase().startsWith(product.toLowerCase())
-  ) {
-    return null;
-  }
-  return product.toLowerCase();
+  const label = product?.toLowerCase();
+  if (!label || label === 'mozilla') return null;
+  const normalizedToken = token.toLowerCase();
+  const secret = normalizedToken.slice(normalizedToken.indexOf('_') + 1);
+  return normalizedToken.includes(label) || (secret && label.includes(secret)) ? null : label;
 }
 export async function recordRequestActivity(
   env: Env,
@@ -50,7 +47,7 @@ export async function recordRequestActivity(
         p_reset_at_ms: decision.resetAt,
       }),
     });
-    if (!response.ok && response.status !== 404) {
+    if (!response.ok) {
       console.warn('record_api_request_activity failed', { status: response.status });
     }
   } catch {

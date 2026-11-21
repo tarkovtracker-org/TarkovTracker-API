@@ -15,6 +15,7 @@ flowchart LR
   DAILY --> HANDLER[Progress / team handlers]
   HANDLER --> DB[(Supabase)]
   W --> USAGE[record_api_usage RPC<br/>api_usage_daily]
+  W --> ACTIVITY[record_api_request_activity RPC<br/>api_request_activity]
 ```
 
 ## Controls
@@ -31,6 +32,8 @@ flowchart LR
   reconciliation; reintroducing any of them is a regression.
 - **Usage accounting.** `record_api_usage` writes `public.api_usage_daily` off the response path.
   It is observability, not a limiter.
+- **Account history.** `record_api_request_activity` writes the final HTTP status and quota
+  decision off the response path.
 - **Shared namespace.** TarkovTracker Pages binds the same DO class through
   `script_name = "api-gateway"` for its own ephemeral limiter keys. Its protocol is pinned by
   `src/__tests__/pages-limiter-contract.test.ts`.
@@ -41,6 +44,7 @@ flowchart LR
 | ----------- | -------------------------------------------------------------------------------------------------------------------------- |
 | Abuse gate  | Fails open; logs `abuse_gate_unavailable`.                                                                                 |
 | Daily quota | Fails open (product entitlement, not a DB-integrity boundary); logs `daily_quota_unavailable`; no `X-RateLimit-*` headers. |
+| Account history | Preserves the API response and logs an activity write failure. |
 
 Neither failure is recorded as a throttle in `api_usage_daily`. Do not change a control's fail
 mode without weighing its abuse impact.
@@ -70,6 +74,7 @@ verification and alerting are open work ([#17](https://github.com/tarkovtracker-
 | DO retained keys        | Expire by window logic.                                                                                                                              |
 | Legacy burst/IP DO keys | Orphaned by the daily-quota refactor (no cleanup alarms); staged cleanup is [#16](https://github.com/tarkovtracker-org/TarkovTracker-API/issues/16). |
 | `api_usage_daily`       | 180 days, nightly pg_cron job owned by TarkovTracker `supabase/`.                                                                                    |
+| `api_request_activity` | 30 days, enforced by the hourly `api-request-activity-cleanup` job owned by TarkovTracker. |
 
 ## Expired-state maintenance (#16)
 
@@ -112,3 +117,5 @@ final HTTP status in a separate best-effort write. The record uses the route tem
 normalized User-Agent product name, omitting request paths with parameters, addresses, raw headers
 and content. This includes daily quota throttles and fail-open decisions and excludes pre-auth
 abuse throttles. The settings UI reads the latest recorded decision per account and quota kind.
+The client label is absent when no usable product name is available, including generic Mozilla
+user agents and names that overlap the token credential.
