@@ -217,18 +217,9 @@ function negotiateEncoding(header: string | null): { gzip: boolean; identity: bo
     identity: contentCodingQuality(preferences, 'identity', 1) > 0,
   };
 }
-// Conditional read response for GET /progress and GET /team/progress. The
-// payload is encoded once so the ETag digest, the gzip size threshold, and the
-// response body all back the same bytes — the validator and the body cannot
-// disagree. The ETag is derived from the serialized payload (not updated_at) so
-// a 304 can never hide a change originating in task metadata or invalidation.
-export async function conditionalReadResponse(
-  request: Request,
-  data: unknown,
-  envOrigin?: string,
-  requestOrigin?: string,
-  extraHeaders?: Record<string, string>
-): Promise<Response> {
+export type ReadRepresentation = { readonly payload: Uint8Array; readonly etag: string };
+// The ETag, gzip threshold and response body all use the same serialized bytes.
+export async function prepareReadRepresentation(data: unknown): Promise<ReadRepresentation> {
   const body: Record<string, unknown> = { success: true };
   if (data && typeof data === 'object' && 'data' in data) {
     const wrapped = data as Record<string, unknown>;
@@ -238,7 +229,15 @@ export async function conditionalReadResponse(
     body.data = data;
   }
   const payload = new TextEncoder().encode(JSON.stringify(body));
-  const etag = await weakEtag(payload);
+  return { payload, etag: await weakEtag(payload) };
+}
+export function conditionalReadResponse(
+  request: Request,
+  { payload, etag }: ReadRepresentation,
+  envOrigin?: string,
+  requestOrigin?: string,
+  extraHeaders?: Record<string, string>
+): Response {
   const headers: Record<string, string> = {
     ...corsHeaders(envOrigin, requestOrigin),
     'Cache-Control': READ_CACHE_CONTROL,

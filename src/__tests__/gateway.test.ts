@@ -2053,6 +2053,40 @@ describe('api-gateway', () => {
     expect(second.headers.get('X-RateLimit-Limit')).toBe('1000');
     expect(second.headers.get('Cache-Control')).toBe('private, max-age=15');
   });
+  it('reuses the payload digest while fresh inputs match and rebuilds after an edition change', async () => {
+    const userProgress = {
+      user_id: 'user-1',
+      game_edition: 1,
+      pvp_data: { taskCompletions: manyCompletions },
+      pve_data: null,
+    };
+    const fetchMock = createBaseFetchMock({ permissions: ['GP'], userProgress });
+    vi.stubGlobal('fetch', fetchMock);
+    const first = await worker.fetch(progressRequest(), BASE_ENV);
+    const etag = first.headers.get('ETag')!;
+    const conditional = { 'If-None-Match': etag };
+    const digest = vi.spyOn(crypto.subtle, 'digest');
+    try {
+      const unchanged = await worker.fetch(progressRequest('pvp', conditional), BASE_ENV);
+      expect(unchanged.status).toBe(304);
+      expect(digest).toHaveBeenCalledTimes(1); // Auth still hashes the token.
+      userProgress.game_edition = 2;
+      const changed = await worker.fetch(progressRequest('pvp', conditional), BASE_ENV);
+      expect(changed.status).toBe(200);
+      expect(changed.headers.get('ETag')).not.toBe(etag);
+      expect(await changed.json()).toMatchObject({ data: { gameEdition: 2 } });
+      deleteMemoryCache('tarkov:tasks:regular');
+      digest.mockClear();
+      const refreshed = await worker.fetch(
+        progressRequest('pvp', { 'If-None-Match': changed.headers.get('ETag')! }),
+        BASE_ENV
+      );
+      expect(refreshed.status).toBe(304);
+      expect(digest).toHaveBeenCalledTimes(2); // A refreshed catalog requires a fresh payload.
+    } finally {
+      digest.mockRestore();
+    }
+  });
   it('returns the full body when If-None-Match does not match', async () => {
     vi.stubGlobal('fetch', createBaseFetchMock({ permissions: ['GP'] }));
     const res = await worker.fetch(
@@ -2062,6 +2096,18 @@ describe('api-gateway', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { success: boolean };
     expect(body.success).toBe(true);
+  });
+  it('treats a legacy non-string display name as absent', async () => {
+    const baseFetch = createBaseFetchMock({ permissions: ['GP'] });
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (String(url).includes('/rest/v1/user_game_mode_progress')) {
+        return jsonResponse([{ user_id: 'user-1', progress_data: { level: 12, displayName: 42 } }]);
+      }
+      return baseFetch(url, init);
+    });
+    const result = await worker.fetch(progressRequest(), BASE_ENV);
+    expect(result.status).toBe(200);
+    expect(await result.json()).toMatchObject({ data: { displayName: 'user-1', playerLevel: 12 } });
   });
   it('gzips large /progress responses when the client accepts gzip', async () => {
     vi.stubGlobal(

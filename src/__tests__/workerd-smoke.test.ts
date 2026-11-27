@@ -73,6 +73,9 @@ const createOutboundFetchMock = (requests: OutboundRequest[], unhandledUrls: str
     if (url.pathname === '/project/rest/v1/rpc/record_api_usage') {
       return jsonResponse({ ok: true });
     }
+    if (url.pathname === '/project/rest/v1/rpc/record_api_request_activity') {
+      return new Response(null, { status: 204 });
+    }
     if (url.pathname === '/project/rest/v1/rpc/get_progress_task_id_aliases')
       return jsonResponse(aliasFixture);
     if (url.pathname === '/project/rest/v1/rpc/get_active_season_number') {

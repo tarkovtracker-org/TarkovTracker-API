@@ -10,3 +10,9 @@ export class DurableObject<Env = unknown> {
     this.env = env;
   }
 }
+export class WorkerEntrypoint<Env = unknown> {
+  protected readonly env: Env;
+  constructor(_ctx: ExecutionContext, env: Env) {
+    this.env = env;
+  }
+}
