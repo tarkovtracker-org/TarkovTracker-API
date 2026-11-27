@@ -1,6 +1,6 @@
 # Progress contracts
 
-`@tarkovtracker/progress-contracts@0.1.3 (candidate)` owns the existing pure rules used by the browser,
+`@tarkovtracker/progress-contracts@0.1.4 (candidate)` owns the existing pure rules used by the browser,
 Nitro and the public API: task update caps, transitions, requirements, failure edges,
 invalidation, materialized mode progress, season-number validation, display-name projection, and
 permanent mode-scoped task/objective identity reconciliation (`taskIdAliases`).
