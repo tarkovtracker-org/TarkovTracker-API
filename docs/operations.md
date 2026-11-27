@@ -103,7 +103,7 @@ instead. Reuse an existing authorized build token without exposing its value or 
 
 `TASK_ID_ALIASES_ENABLED` defaults to `false` so this Worker can deploy before the new RPC.
 Ship Tracker's `get_progress_task_id_aliases()` service-role-only RPC and progress-table triggers,
-then the reviewed `0.1.3` contracts release and Tracker consumers, before enabling this flag.
+then the reviewed `0.1.4` contracts release and Tracker consumers, before enabling this flag.
 Keep aliases empty until all deployed consumers handle canonical IDs. Publish an activated overlay
 manifest and matching catalog definitions with a matching forward SQL manifest migration; wait out
 metadata caches and verify all three modes before retiring placeholder definitions. Keep every
