@@ -73,6 +73,9 @@ const createOutboundFetchMock = (requests: OutboundRequest[], unhandledUrls: str
     if (url.pathname === '/project/rest/v1/rpc/record_api_usage') {
       return jsonResponse({ ok: true });
     }
+    if (url.pathname === '/project/rest/v1/rpc/record_api_request_activity') {
+      return new Response(null, { status: 204 });
+    }
     if (url.pathname === '/project/rest/v1/rpc/get_progress_task_id_aliases')
       return jsonResponse(aliasFixture);
     if (url.pathname === '/project/rest/v1/rpc/get_active_season_number') {
@@ -88,6 +91,7 @@ const createOutboundFetchMock = (requests: OutboundRequest[], unhandledUrls: str
             level: 7,
             pmcFaction: 'USEC',
             taskCompletions: {},
+            traders: { '54cb50c76803fa8b248b4571': { level: 3, reputation: 0.41 } },
           },
         },
       ]);
@@ -360,6 +364,7 @@ describe('api-gateway workerd smoke', () => {
         taskObjectivesProgress: [],
         hideoutModulesProgress: [],
         hideoutPartsProgress: [],
+        tradersProgress: [{ id: '54cb50c76803fa8b248b4571', level: 3, reputation: 0.41 }],
         displayName: 'Runtime Smoke',
         userId: 'runtime-user',
         playerLevel: 7,

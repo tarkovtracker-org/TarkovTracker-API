@@ -10,22 +10,24 @@ import { setTaskState } from '@tarkovtracker/progress-contracts/taskTransitions'
 import { getUserDisplayName } from '../utils/user-display-name';
 import { hasMaterializedProgress } from '@tarkovtracker/progress-contracts/modeProgress';
 import { getTasks, getHideoutStations } from '../services/tarkov';
+import { prepareReadRepresentation } from '../responses';
+import type { ReadRepresentation } from '../responses';
 import { getGameModeSeasonNumber } from '../utils/gameMode';
 import { logger } from '../utils/logger';
 import { ProgressInputError } from '../utils/progress-input';
-import { extractGameModeData, transformProgress } from '../utils/transform';
+import { transformProgress } from '../utils/transform';
 import type {
   Env,
   ApiToken,
   UserProgressModeRow,
-  ProgressResponse,
   TaskState,
   BatchTaskUpdate,
   TaskCompletion,
-  ApiTaskUpdate,
   ApiUpdateMeta,
   GameMode,
   ProgressDataField,
+  TarkovTask,
+  TarkovHideoutStation,
 } from '../types';
 interface ProgressMergePayload {
   taskCompletions?: Record<string, TaskCompletion>;
@@ -124,15 +126,14 @@ interface ProgressMetadataRow {
   game_edition: number | null;
   user_id: string;
 }
-const DEFAULT_GAME_EDITION = 1;
 async function fetchProgressRowPair(
   env: Env,
   userId: string,
   gameMode: GameMode,
   seasonNumber: number
 ): Promise<{
-  metadataRows: ProgressMetadataRow[];
-  modeRows: ProgressModeRowFragment[];
+  gameEdition: number;
+  modeText: string;
 }> {
   const modeUrl = `${env.SUPABASE_URL}/rest/v1/user_game_mode_progress?user_id=eq.${userId}&game_mode=eq.${gameMode}&season_number=eq.${seasonNumber}&select=user_id,progress_data&limit=1`;
   const metadataUrl = `${env.SUPABASE_URL}/rest/v1/user_progress?user_id=eq.${userId}&select=user_id,game_edition&limit=1`;
@@ -143,43 +144,11 @@ async function fetchProgressRowPair(
   if (!modeResponse.ok || !metadataResponse.ok) {
     throw new Error('Failed to fetch user progress');
   }
-  const modeRows = (await modeResponse.json()) as ProgressModeRowFragment[];
-  const metadataRows = (await metadataResponse.json()) as ProgressMetadataRow[];
-  return { metadataRows, modeRows };
-}
-const readModeUserId = (modeRow: ProgressModeRowFragment | undefined, userId: string): string =>
-  modeRow?.user_id ?? userId;
-const readGameEdition = (metadataRow: ProgressMetadataRow | undefined): number =>
-  metadataRow?.game_edition ?? DEFAULT_GAME_EDITION;
-/**
- * Assemble the response row. A user may be missing the materialized mode row,
- * the `user_progress` metadata row, or both; each absence resolves to a
- * documented default rather than failing the read.
- */
-function buildProgressModeRow(
-  userId: string,
-  modeRow: ProgressModeRowFragment | undefined,
-  metadataRow: ProgressMetadataRow | undefined
-): UserProgressModeRow {
-  return {
-    user_id: readModeUserId(modeRow, userId),
-    game_edition: readGameEdition(metadataRow),
-    progress_data: hasMaterializedProgress(modeRow?.progress_data) ? modeRow!.progress_data : null,
-  };
-}
-async function fetchUserProgressMode(
-  env: Env,
-  userId: string,
-  gameMode: GameMode
-): Promise<UserProgressModeRow | null> {
-  const seasonNumber = await getGameModeSeasonNumber(env, gameMode);
-  const { metadataRows, modeRows } = await fetchProgressRowPair(
-    env,
-    userId,
-    gameMode,
-    seasonNumber
-  );
-  return buildProgressModeRow(userId, modeRows[0], metadataRows[0]);
+  const [modeText, metadataRows] = await Promise.all([
+    modeResponse.text(),
+    metadataResponse.json<ProgressMetadataRow[]>(),
+  ]);
+  return { modeText, gameEdition: metadataRows[0]?.game_edition ?? 1 };
 }
 const asProgressRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value)
@@ -202,61 +171,98 @@ async function fetchCurrentProgressData(
   const modeProgress = modeRows[0]?.progress_data ?? null;
   return hasMaterializedProgress(modeProgress) ? asProgressRecord(modeProgress) : {};
 }
-const orderRequestedFirst = (
-  updateMap: Map<string, TaskState>,
-  requestedIds: readonly string[]
-): ApiTaskUpdate[] => {
-  const requested = new Set(requestedIds.filter((id) => updateMap.has(id)));
-  const ordered = [...requested, ...[...updateMap.keys()].filter((id) => !requested.has(id))];
-  return ordered.map((id) => ({ id, state: updateMap.get(id) as TaskState }));
-};
-const buildApiUpdateMeta = (updates: ApiTaskUpdate[], timestamp: number): ApiUpdateMeta => {
+const buildApiUpdateMeta = (updates: Map<string, TaskState>, timestamp: number): ApiUpdateMeta => {
   return {
     id: crypto.randomUUID(),
     at: timestamp,
     source: 'api',
-    ...capApiTaskUpdates(updates),
+    ...capApiTaskUpdates(Array.from(updates, ([id, state]) => ({ id, state }))),
   };
 };
-/**
- * Handle GET /api/progress - Return player progress
- */
+type ProgressReadInputs = {
+  modeText: string;
+  gameEdition: number;
+  fallbackDisplayName: string | null;
+  aliases: TaskIdAliasMapping;
+  tasks: TarkovTask[];
+  hideout: TarkovHideoutStation[];
+};
+type CachedProgressRead = ProgressReadInputs & {
+  hasDisplayName: boolean;
+  representation: ReadRepresentation;
+};
+const MAX_PROGRESS_READS = 32;
+const MAX_PROGRESS_READ_BYTES = 128 * 1024;
+const progressReads = new Map<string, CachedProgressRead>();
+function matchesProgressRead(previous: CachedProgressRead, inputs: ProgressReadInputs): boolean {
+  return (
+    previous.gameEdition === inputs.gameEdition &&
+    previous.fallbackDisplayName === inputs.fallbackDisplayName &&
+    previous.aliases === inputs.aliases &&
+    previous.tasks === inputs.tasks &&
+    previous.hideout === inputs.hideout
+  );
+}
+function rememberProgressRead(key: string, entry: CachedProgressRead): void {
+  progressReads.delete(key);
+  if (entry.modeText.length * 2 + entry.representation.payload.byteLength > MAX_PROGRESS_READ_BYTES)
+    return;
+  if (progressReads.size === MAX_PROGRESS_READS) {
+    const oldest = progressReads.keys().next();
+    if (!oldest.done) progressReads.delete(oldest.value);
+  }
+  progressReads.set(key, entry);
+}
+function parseProgressRead(modeText: string) {
+  const [row] = JSON.parse(modeText) as ProgressModeRowFragment[];
+  return hasMaterializedProgress(row?.progress_data) ? row.progress_data : null;
+}
+/** Build the private representation for GET /progress. */
 export async function handleGetProgress(
   env: Env,
   token: ApiToken,
   gameMode: GameMode
-): Promise<ProgressResponse> {
-  // Select only the requested game mode's JSONB blob to reduce Supabase egress
-  // and Worker memory; the other mode's column is not needed for this response.
-  const row = await fetchUserProgressMode(env, token.user_id, gameMode);
-  const gameEdition = row?.game_edition ?? 1;
-  // Extract game mode specific data
-  const rawProgress = extractGameModeData(row);
+): Promise<ReadRepresentation> {
+  const userId = token.user_id;
+  const season = await getGameModeSeasonNumber(env, gameMode);
+  const { modeText, gameEdition } = await fetchProgressRowPair(env, userId, gameMode, season);
+  const key = JSON.stringify([env.SUPABASE_URL, userId, gameMode, season]);
+  const previous = progressReads.get(key);
+  const matchingRow = previous?.modeText === modeText ? previous : undefined;
+  const parsed = matchingRow ? undefined : parseProgressRead(modeText);
+  // Task identity reconciliation only rewrites task-keyed fields.
+  const storedName = parsed?.displayName;
+  const hasDisplayName =
+    matchingRow?.hasDisplayName ?? (typeof storedName === 'string' && storedName.trim().length > 0);
   const aliases = await getTaskIdAliases(env, gameMode);
-  const progressData = rawProgress ? reconcileTaskIdentities(rawProgress, aliases) : null;
-  const fallbackDisplayName =
-    progressData?.displayName?.trim() || (await getUserDisplayName(env, token.user_id));
-  // Fetch task and hideout data (cached)
-  const [tasks, hideoutStations] = await Promise.all([
+  const fallbackDisplayName = hasDisplayName ? null : await getUserDisplayName(env, userId);
+  const [tasks, hideout] = await Promise.all([
     getTasks(gameMode),
     getHideoutStations(gameMode),
   ]);
-  // Transform to API response format
+  // Recheck the same sources on every request. Catalog and alias refreshes replace
+  // their snapshots, so even a catalog-only change invalidates this representation.
+  const inputs = { modeText, gameEdition, fallbackDisplayName, aliases, tasks, hideout };
+  if (matchingRow && matchesProgressRead(matchingRow, inputs)) {
+    rememberProgressRead(key, matchingRow);
+    return matchingRow.representation;
+  }
+  const rawProgress = parsed === undefined ? parseProgressRead(modeText) : parsed;
+  const progressData = rawProgress ? reconcileTaskIdentities(rawProgress, aliases) : null;
   const data = transformProgress(
     progressData,
-    token.user_id,
+    userId,
     gameEdition,
     tasks,
-    hideoutStations,
+    hideout,
     fallbackDisplayName
   );
-  return {
+  const representation = await prepareReadRepresentation({
     data,
-    meta: {
-      self: token.user_id,
-      gameMode: gameMode,
-    },
-  };
+    meta: { self: userId, gameMode },
+  });
+  rememberProgressRead(key, { ...inputs, hasDisplayName, representation });
+  return representation;
 }
 /**
  * Handle POST /api/progress/level/:levelValue - Update player level
@@ -344,7 +350,7 @@ export async function handleUpdateTask(
   const changedCompletions = { [taskId]: taskCompletions[taskId] };
   const set: Record<string, unknown> = {};
   if (updateMap.size > 0) {
-    set.lastApiUpdate = buildApiUpdateMeta(orderRequestedFirst(updateMap, [taskId]), updateTime);
+    set.lastApiUpdate = buildApiUpdateMeta(updateMap, updateTime);
   }
   await mergeProgressData(
     env,
@@ -365,15 +371,9 @@ export async function handleUpdateTasks(
   gameMode: GameMode
 ): Promise<{ updatedTasks: string[]; message: string }> {
   const aliases = await getTaskIdAliases(env, gameMode);
-  updates = updates.map((update) => ({
-    ...update,
-    id: resolveTaskId(update.id, aliases),
-  }));
-  await validateTaskIds(
-    gameMode,
-    updates.map((update) => update.id),
-    aliases
-  );
+  const requestedIds = updates.map(({ id }) => resolveTaskId(id, aliases));
+  const finalStates = new Map(requestedIds.map((id, index) => [id, updates[index].state]));
+  await validateTaskIds(gameMode, [...finalStates.keys()], aliases);
   const dataField = getProgressDataField(gameMode);
   const updateTime = Date.now();
   // Fetch current data
@@ -383,34 +383,24 @@ export async function handleUpdateTasks(
   );
   const taskCompletions = (currentData.taskCompletions as Record<string, TaskCompletion>) || {};
   const updateMap = new Map<string, TaskState>();
-  for (const update of updates) {
-    setTaskState(taskCompletions, update.id, update.state, {
-      timestamp: updateTime,
-      updates: updateMap,
-    });
+  const changedCompletions: Record<string, TaskCompletion> = {};
+  for (const [id, state] of finalStates) {
+    setTaskState(taskCompletions, id, state, { timestamp: updateTime, updates: updateMap });
+    changedCompletions[id] = taskCompletions[id];
   }
-  const changedCompletions = Object.fromEntries(
-    [...new Set(updates.map((update) => update.id))].map((id) => [id, taskCompletions[id]])
-  );
   const set: Record<string, unknown> = {};
   if (updateMap.size > 0) {
-    set.lastApiUpdate = buildApiUpdateMeta(
-      orderRequestedFirst(
-        updateMap,
-        updates.map((update) => update.id)
-      ),
-      updateTime
-    );
+    set.lastApiUpdate = buildApiUpdateMeta(updateMap, updateTime);
   }
   await mergeProgressData(
     env,
     token,
     dataField,
     { taskCompletions: changedCompletions, ...(updateMap.size > 0 && { set }) },
-    { action: 'update-tasks', taskIds: updates.map((u) => u.id) }
+    { action: 'update-tasks', taskIds: requestedIds }
   );
   return {
-    updatedTasks: updates.map((u) => u.id),
+    updatedTasks: requestedIds,
     message: 'Tasks updated successfully',
   };
 }

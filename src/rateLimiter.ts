@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import type { Env } from './types';
 import { logger } from './utils/logger';
+import { inspectLimiterState, type LimiterStateCategory } from './limiterMaintenance';
 type RateLimitAnchor = 'utc-day';
 type RateLimitOptions = {
   anchor?: RateLimitAnchor;
@@ -98,8 +99,52 @@ function createRateLimitState(config: RateLimitConfig, now: number): RateLimitSt
 export class ApiGatewayRateLimiter extends DurableObject<Env> {
   private data?: RateLimitState;
   private loaded = false;
+  private pending: Promise<unknown> = Promise.resolve();
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
+  }
+  // Includes ordinary requests and alarms: a maintenance read/delete must never
+  // interleave with a quota consumption or leave an old in-memory counter behind.
+  private exclusive<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.pending.then(operation);
+    this.pending = result.catch(() => {});
+    return result;
+  }
+  async maintainExpiredState(options: { apply?: boolean } = {}): Promise<{
+    category: LimiterStateCategory;
+    status: 'empty' | 'unknown' | 'extra-storage' | 'active' | 'eligible' | 'deleted';
+  }> {
+    if (
+      !options || typeof options !== 'object' || Array.isArray(options) ||
+      Object.keys(options).some((key) => key !== 'apply') ||
+      (options.apply !== undefined && typeof options.apply !== 'boolean')
+    ) throw new TypeError('Invalid maintenance options');
+    return this.exclusive(async () => {
+      // Read storage directly, never load()/fetch(): dry-run cannot consume quota,
+      // change the cache, write state, or schedule/cancel an alarm.
+      const entries = await this.ctx.storage.list<unknown>({ limit: 2 });
+      if (entries.size > 0 && (entries.size !== 1 || !entries.has('state'))) {
+        return { category: 'unknown', status: 'extra-storage' };
+      }
+      const inspection = entries.size === 0
+        ? { category: 'unknown', status: 'empty' } as const
+        : inspectLimiterState(entries.get('state'), Date.now());
+      if (inspection.status === 'unknown') return { category: inspection.category, status: 'unknown' };
+      // Read only the SQL catalog, never Cloudflare's internal KV table contents.
+      // deleteAll also deletes SQL tables, so any unfamiliar schema must be kept.
+      const tables = this.ctx.storage.sql.exec<{ name: string }>(
+        "SELECT name FROM sqlite_master WHERE name NOT IN ('_cf_KV', '_cf_METADATA') LIMIT 1"
+      ).toArray();
+      if (tables.length) return { category: inspection.category, status: 'extra-storage' };
+      if (inspection.status === 'empty') return inspection;
+      if (inspection.status === 'active') return { category: inspection.category, status: 'active' };
+      if (options.apply !== true) return { category: inspection.category, status: 'eligible' };
+      this.data = undefined;
+      this.loaded = false;
+      await this.ctx.storage.deleteAlarm();
+      await this.ctx.storage.deleteAll();
+      return { category: inspection.category, status: 'deleted' };
+    });
   }
   private json(body: RateLimitResponse): Response {
     return new Response(JSON.stringify(body), {
@@ -149,10 +194,15 @@ export class ApiGatewayRateLimiter extends DurableObject<Env> {
     if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
     const config = await parseRateLimitConfig(request);
     if (config instanceof Response) return config;
-    await this.load();
-    return this.consume(config, this.prepareState(config));
+    return this.exclusive(async () => {
+      await this.load();
+      return this.consume(config, this.prepareState(config));
+    });
   }
   async alarm(): Promise<void> {
+    return this.exclusive(() => this.cleanupAlarm());
+  }
+  private async cleanupAlarm(): Promise<void> {
     try {
       const stored = await this.ctx.storage.get<RateLimitState>('state');
       const now = Date.now();

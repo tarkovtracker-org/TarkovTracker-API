@@ -15,6 +15,7 @@ flowchart LR
   DAILY --> HANDLER[Progress / team handlers]
   HANDLER --> DB[(Supabase)]
   W --> USAGE[record_api_usage RPC<br/>api_usage_daily]
+  W --> ACTIVITY[record_api_request_activity RPC<br/>api_request_activity]
 ```
 
 ## Controls
@@ -31,6 +32,8 @@ flowchart LR
   reconciliation; reintroducing any of them is a regression.
 - **Usage accounting.** `record_api_usage` writes `public.api_usage_daily` off the response path.
   It is observability, not a limiter.
+- **Account history.** `record_api_request_activity` writes the final HTTP status and quota
+  decision off the response path.
 - **Shared namespace.** TarkovTracker Pages binds the same DO class through
   `script_name = "api-gateway"` for its own ephemeral limiter keys. Its protocol is pinned by
   `src/__tests__/pages-limiter-contract.test.ts`.
@@ -41,6 +44,7 @@ flowchart LR
 | ----------- | -------------------------------------------------------------------------------------------------------------------------- |
 | Abuse gate  | Fails open; logs `abuse_gate_unavailable`.                                                                                 |
 | Daily quota | Fails open (product entitlement, not a DB-integrity boundary); logs `daily_quota_unavailable`; no `X-RateLimit-*` headers. |
+| Account history | Preserves the API response and logs an activity write failure. |
 
 Neither failure is recorded as a throttle in `api_usage_daily`. Do not change a control's fail
 mode without weighing its abuse impact.
@@ -70,3 +74,48 @@ verification and alerting are open work ([#17](https://github.com/tarkovtracker-
 | DO retained keys        | Expire by window logic.                                                                                                                              |
 | Legacy burst/IP DO keys | Orphaned by the daily-quota refactor (no cleanup alarms); staged cleanup is [#16](https://github.com/tarkovtracker-org/TarkovTracker-API/issues/16). |
 | `api_usage_daily`       | 180 days, nightly pg_cron job owned by TarkovTracker `supabase/`.                                                                                    |
+| `api_request_activity` | 30 days, enforced by the hourly `api-request-activity-cleanup` job owned by TarkovTracker. |
+
+## Expired-state maintenance (#16)
+
+The binding-only `LimiterMaintenance.runBatch` service and
+`ApiGatewayRateLimiter.maintainExpiredState` RPC support bounded dry-run and explicitly requested
+cleanup. Neither is a public HTTP route. Deployment and production cleanup require separate
+authorization; adding the tooling does not establish that any production state was reclaimed.
+See [the operator procedure](./operations.md#expired-limiter-state-maintenance-16).
+
+Object IDs are opaque: this process inventories **recognized expired state**, not exact legacy
+burst/IP objects. It can reclaim expired daily or Pages state too, which the normal limiter already
+treats as absent. Active quotas remain intact. Unknown, malformed, mixed-schema, extra KV or
+unrecognized SQL schema objects are retained for separate investigation, without returning their
+state or user/IP data. Only the single `state` KV entry and Cloudflare's `_cf_KV`/`_cf_METADATA`
+catalog entries are accepted for complete storage deletion. The SQL check reads catalog names,
+never internal KV or metadata contents.
+`empty` means no KV entries and no unrecognized SQL schema; platform metadata or an alarm can
+still exist. A SQL-only application schema is reported as `extra-storage` and retained.
+
+Recognized fixed windows require a nonnegative safe-integer count, finite nonnegative `resetAt`,
+positive finite `windowSec`, finite `windowSec * 1000` and only supported optional
+`anchor`/`ephemeral` fields. Equality at expiry is
+eligible. Historical sliding state from Tracker
+[`0855aa5`](https://github.com/tarkovtracker-org/TarkovTracker/blob/0855aa5fea170bb3f5fd417adfc254904309d15c/workers/api-gateway/src/index.ts)
+also requires `mode: 'sliding'`, ordered finite timestamps, matching count/oldest reset and no anchor.
+Every timestamp must have expired by its full window; an elapsed oldest `resetAt` alone is unsafe.
+Current and historical shapes outside this strict whitelist remain untouched.
+
+Each applying call reads and classifies current storage again while serialized with normal requests
+and alarms. It invalidates the loaded cache, cancels the alarm and deletes storage only after those
+checks. A stale dry-run never authorizes deletion of newly active state. Dry-run invokes/accesses
+the object and may initialize its runtime, but does not explicitly write storage, consume quota,
+change its cache or schedule/cancel alarms. Platform billing, invocation logs and already scheduled
+alarms can still occur independently of maintenance.
+
+## Account request activity
+
+After a valid token reaches the daily quota check, the gateway records the quota decision and
+final HTTP status in a separate best-effort write. The record uses the route template and first
+normalized User-Agent product name, omitting request paths with parameters, addresses, raw headers
+and content. This includes daily quota throttles and fail-open decisions and excludes pre-auth
+abuse throttles. The settings UI reads the latest recorded decision per account and quota kind.
+The client label is absent when no usable product name is available, including generic Mozilla
+user agents and names that overlap the token credential.

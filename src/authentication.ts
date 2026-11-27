@@ -9,6 +9,16 @@ import type { ApiToken, Env, Permission } from './types';
 type Action = 'progress-read' | 'progress-write' | 'token-info';
 type UsageKind = 'read' | 'write';
 type ApiTier = Awaited<ReturnType<typeof resolveTier>>;
+export type QuotaDecision = {
+  tokenId: string;
+  userId: string;
+  kind: UsageKind;
+  at: string;
+  outcome: 'counted' | 'throttled' | 'unavailable';
+  limit: number | null;
+  remaining: number | null;
+  resetAt: number | null;
+};
 type AuthSuccess = {
   validation: { valid: true; token: ApiToken };
   rlHeaders: Record<string, string>;
@@ -23,6 +33,7 @@ export type AuthenticationContext = {
   request: Request;
   requestOrigin?: string;
   userAgent?: string | null;
+  onQuotaDecision?: (decision: QuotaDecision) => void;
 };
 async function hashIp(ip: string, secret?: string): Promise<string | null> {
   if (!secret) return null;
@@ -187,6 +198,16 @@ async function enforceDailyQuota(
     { anchor: 'utc-day' }
   );
   const headers = rateLimitHeaders(daily);
+  context.onQuotaDecision?.({
+    tokenId: token.token_id,
+    userId: token.user_id,
+    kind,
+    at: new Date().toISOString(),
+    outcome: daily.unavailable ? 'unavailable' : daily.allowed ? 'counted' : 'throttled',
+    limit: daily.limit ?? null,
+    remaining: daily.remaining ?? null,
+    resetAt: daily.resetAt ?? null,
+  });
   if (daily.allowed) {
     trackUsage(context, token, tier, kind, false);
     return { validation: { valid: true, token }, rlHeaders: headers };

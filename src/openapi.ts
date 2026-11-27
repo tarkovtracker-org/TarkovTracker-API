@@ -416,6 +416,18 @@ export const OPENAPI_SPEC = {
         },
         required: ['id', 'complete'],
       },
+      ProgressTrader: {
+        type: 'object',
+        description:
+          'Stored trader standing. Traders the user has never saved are omitted; ' +
+          'treat them as level 1, reputation 0.',
+        properties: {
+          id: { type: 'string', description: 'tarkov.dev trader ID.' },
+          level: { type: 'integer', minimum: 1, description: 'Trader loyalty level.' },
+          reputation: { type: 'number', description: 'Trader reputation (standing).' },
+        },
+        required: ['id', 'level', 'reputation'],
+      },
       ProgressMeta: {
         type: 'object',
         properties: {
@@ -448,6 +460,10 @@ export const OPENAPI_SPEC = {
             type: 'array',
             items: { $ref: '#/components/schemas/ProgressHideoutPart' },
           },
+          tradersProgress: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/ProgressTrader' },
+          },
           displayName: { type: 'string' },
           userId: { type: 'string' },
           playerLevel: { type: 'integer', minimum: 1, maximum: 79 },
@@ -459,6 +475,7 @@ export const OPENAPI_SPEC = {
           'taskObjectivesProgress',
           'hideoutModulesProgress',
           'hideoutPartsProgress',
+          'tradersProgress',
           'displayName',
           'userId',
           'playerLevel',
@@ -484,6 +501,7 @@ export const OPENAPI_SPEC = {
               taskObjectivesProgress: [{ id: 'obj-1', complete: true, count: 2, invalid: false }],
               hideoutModulesProgress: [],
               hideoutPartsProgress: [],
+              tradersProgress: [{ id: '54cb50c76803fa8b248b4571', level: 2, reputation: 0.35 }],
               displayName: 'Tracker',
               userId: 'user-uuid',
               playerLevel: 10,
