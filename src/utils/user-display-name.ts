@@ -3,9 +3,9 @@ import {
   extractUserMetadataUsername,
   getUserMetadataString,
 } from '@tarkovtracker/progress-contracts/userMetadata';
-import { logger } from '@/utils/logger';
-import { getMemoryCache, setMemoryCache } from '@/utils/memory-cache';
-import type { Env } from '@/types';
+import { logger } from './logger';
+import { getMemoryCache, setMemoryCache } from './memory-cache';
+import type { Env } from '../types';
 const DISPLAY_NAME_CACHE_TTL_SECONDS = 86400;
 // Match the existing Supabase tier, quota and usage request deadline.
 const DISPLAY_NAME_FETCH_TIMEOUT_MS = 3000;

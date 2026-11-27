@@ -12,8 +12,8 @@ do not have replacement contracts archives. For a new contracts release:
 2. Run the frozen-lock install, contracts/gateway tests, boundary/type/schema checks and dry-run
    build at that commit. Record frontend/Worker parity for PvP, PvE and Seasonal modes against
    the corresponding reviewed TarkovTracker commit. Keep SQL assertions with Supabase.
-3. Fix a new package version before freezing the release commit. The next patch candidate is
-   `0.1.4`. Verify that the matching tag is unused before publishing, and never repurpose
+3. Fix a new package version before freezing the release commit. The task acceptance contract is
+   a `0.2.0` candidate. Verify that the matching tag is unused before publishing, and never repurpose
    an existing tag. Pack twice with the pinned tools, compare SHA-512, and
    retain the exact tarball, digest, source provenance and validation receipt.
 4. Only after that immutable version is reviewed, create its release/tag and attach the verified
